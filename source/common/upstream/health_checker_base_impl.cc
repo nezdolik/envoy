@@ -6,6 +6,8 @@
 #include "common/network/utility.h"
 #include "common/router/router.h"
 
+#include <iostream>
+
 namespace Envoy {
 namespace Upstream {
 
@@ -35,7 +37,8 @@ HealthCheckerImplBase::HealthCheckerImplBase(const Cluster& cluster,
           PROTOBUF_GET_MS_OR_DEFAULT(config, healthy_edge_interval, interval_.count())) {
   cluster_.prioritySet().addMemberUpdateCb(
       [this](const HostVector& hosts_added, const HostVector& hosts_removed) -> void {
-        onClusterMemberUpdate(hosts_added, hosts_removed);
+				std::cerr << "HC addMemberUpdateCb execute" << std::endl;
+				onClusterMemberUpdate(hosts_added, hosts_removed);
       });
 }
 

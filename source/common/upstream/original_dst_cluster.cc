@@ -1,6 +1,7 @@
 #include "common/upstream/original_dst_cluster.h"
 
 #include <chrono>
+#include <iostream>
 #include <list>
 #include <string>
 #include <vector>
@@ -32,7 +33,9 @@ OriginalDstCluster::LoadBalancer::LoadBalancer(
       [this](const HostVector& hosts_added, const HostVector& hosts_removed) -> void {
         // Update the hosts map
         // TODO(ramaraochavali): use cluster stats and move the log lines to debug.
-        for (const HostSharedPtr& host : hosts_removed) {
+				std::cerr << "ODC addMemberUpdateCb execute" << std::endl;
+
+				for (const HostSharedPtr& host : hosts_removed) {
           ENVOY_LOG(debug, "Removing host {}.", host->address()->asString());
           host_map_.remove(host);
         }

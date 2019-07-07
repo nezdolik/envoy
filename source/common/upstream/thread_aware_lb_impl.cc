@@ -1,5 +1,6 @@
 #include "common/upstream/thread_aware_lb_impl.h"
 
+#include <iostream>
 #include <memory>
 
 namespace Envoy {
@@ -79,8 +80,13 @@ void ThreadAwareLoadBalancerBase::initialize() {
   // I will look into doing this in a follow up. Doing everything using a background thread heavily
   // complicated initialization as the load balancer would need its own initialized callback. I
   // think the synchronous/asynchronous split is probably the best option.
-  priority_set_.addPriorityUpdateCb(
-      [this](uint32_t, const HostVector&, const HostVector&) -> void { refresh(); });
+	std::cerr << "registering callback" << std::endl;
+
+	priority_set_.addPriorityUpdateCb(
+      [this](uint32_t, const HostVector&, const HostVector&) -> void {
+				std::cerr << "refresh" << std::endl;
+      	refresh();
+      });
 
   refresh();
 }
@@ -93,6 +99,8 @@ void ThreadAwareLoadBalancerBase::refresh() {
   auto degraded_per_priority_load =
       std::make_shared<DegradedLoad>(per_priority_load_.degraded_priority_load_);
 
+	std::cerr << "refresh 0" << std::endl;
+
   for (const auto& host_set : priority_set_.hostSetsPerPriority()) {
     const uint32_t priority = host_set->priority();
     (*per_priority_state_vector)[priority] = std::make_unique<PerPriorityState>();
@@ -100,7 +108,7 @@ void ThreadAwareLoadBalancerBase::refresh() {
     // Copy panic flag from LoadBalancerBase. It is calculated when there is a change
     // in hosts set or hosts' health.
     per_priority_state->global_panic_ = per_priority_panic_[priority];
-
+		std::cerr << "refresh 1" << std::endl;
     // Normalize host and locality weights such that the sum of all normalized weights is 1.
     NormalizedHostWeightVector normalized_host_weights;
     double min_normalized_weight = 1.0;
@@ -111,12 +119,16 @@ void ThreadAwareLoadBalancerBase::refresh() {
         createLoadBalancer(normalized_host_weights, min_normalized_weight, max_normalized_weight);
   }
 
+	std::cerr << "refresh 2" << std::endl;
+
   {
     absl::WriterMutexLock lock(&factory_->mutex_);
     factory_->healthy_per_priority_load_ = healthy_per_priority_load;
     factory_->degraded_per_priority_load_ = degraded_per_priority_load;
     factory_->per_priority_state_ = per_priority_state_vector;
   }
+
+	std::cerr << "refresh end" << std::endl;
 }
 
 HostConstSharedPtr

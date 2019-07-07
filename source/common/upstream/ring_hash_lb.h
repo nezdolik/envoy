@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <iostream>
 
 #include "envoy/runtime/runtime.h"
 #include "envoy/stats/scope.h"
@@ -72,6 +73,7 @@ private:
   HashingLoadBalancerSharedPtr
   createLoadBalancer(const NormalizedHostWeightVector& normalized_host_weights,
                      double min_normalized_weight, double /* max_normalized_weight */) override {
+		std::cerr << "***created thread aware lb:  " << std::this_thread::get_id() << std::endl;
     return std::make_shared<Ring>(normalized_host_weights, min_normalized_weight, min_ring_size_,
                                   max_ring_size_, hash_function_, stats_);
   }

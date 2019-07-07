@@ -3,9 +3,11 @@
 #include <chrono>
 #include <cstdint>
 #include <limits>
+#include <iostream>
 #include <list>
 #include <memory>
 #include <string>
+#include <thread>
 #include <unordered_set>
 #include <vector>
 
@@ -253,7 +255,8 @@ HostImpl::createConnection(Event::Dispatcher& dispatcher, const ClusterInfo& clu
                            Network::Address::InstanceConstSharedPtr address,
                            const Network::ConnectionSocket::OptionsSharedPtr& options,
                            Network::TransportSocketOptionsSharedPtr transport_socket_options) {
-  Network::ConnectionSocket::OptionsSharedPtr connection_options;
+	ENVOY_LOG(debug, "***HostImpl createConnection start: thread id={}", std::this_thread::get_id());
+	Network::ConnectionSocket::OptionsSharedPtr connection_options;
   if (cluster.clusterSocketOptions() != nullptr) {
     if (options) {
       connection_options = std::make_shared<Network::ConnectionSocket::Options>();
@@ -316,6 +319,7 @@ void HostSetImpl::updateHosts(PrioritySet::UpdateHostsParams&& update_hosts_para
                               LocalityWeightsConstSharedPtr locality_weights,
                               const HostVector& hosts_added, const HostVector& hosts_removed,
                               absl::optional<uint32_t> overprovisioning_factor) {
+	std::cerr << "inner updateHosts start:" << std::this_thread::get_id()<< std::endl;
   if (overprovisioning_factor.has_value()) {
     ASSERT(overprovisioning_factor.value() > 0);
     overprovisioning_factor_ = overprovisioning_factor.value();
@@ -339,7 +343,12 @@ void HostSetImpl::updateHosts(PrioritySet::UpdateHostsParams&& update_hosts_para
                            hosts_per_locality_, excluded_hosts_per_locality_, locality_weights_,
                            overprovisioning_factor_);
 
+	std::cerr << "inner updateHosts before runUpdateCallbacks:" << std::this_thread::get_id()<< std::endl;
+
   runUpdateCallbacks(hosts_added, hosts_removed);
+
+	std::cerr << "inner updateHosts end:" << std::this_thread::get_id()<< std::endl;
+
 }
 
 void HostSetImpl::rebuildLocalityScheduler(
@@ -474,7 +483,9 @@ double HostSetImpl::effectiveLocalityWeight(uint32_t index,
 const HostSet&
 PrioritySetImpl::getOrCreateHostSet(uint32_t priority,
                                     absl::optional<uint32_t> overprovisioning_factor) {
-  if (host_sets_.size() < priority + 1) {
+	std::cerr << "before runReferenceUpdateCallbacks" << std::this_thread::get_id()<< std::endl;
+
+	if (host_sets_.size() < priority + 1) {
     for (size_t i = host_sets_.size(); i <= priority; ++i) {
       HostSetImplPtr host_set = createHostSet(i, overprovisioning_factor);
       host_set->addPriorityUpdateCb([this](uint32_t priority, const HostVector& hosts_added,
@@ -485,6 +496,7 @@ PrioritySetImpl::getOrCreateHostSet(uint32_t priority,
     }
   }
   return *host_sets_[priority];
+	std::cerr << "getOrCreateHostSet end:" << std::this_thread::get_id()<< std::endl;
 }
 
 void PrioritySetImpl::updateHosts(uint32_t priority, UpdateHostsParams&& update_hosts_params,
@@ -492,12 +504,14 @@ void PrioritySetImpl::updateHosts(uint32_t priority, UpdateHostsParams&& update_
                                   const HostVector& hosts_added, const HostVector& hosts_removed,
                                   absl::optional<uint32_t> overprovisioning_factor) {
   // Ensure that we have a HostSet for the given priority.
+	std::cerr << "updateHosts start:" << std::this_thread::get_id()<< std::endl;
   getOrCreateHostSet(priority, overprovisioning_factor);
   static_cast<HostSetImpl*>(host_sets_[priority].get())
       ->updateHosts(std::move(update_hosts_params), std::move(locality_weights), hosts_added,
                     hosts_removed, overprovisioning_factor);
 
   if (!batch_update_) {
+		std::cerr << "runUpdateCallbacks start" << std::endl;
     runUpdateCallbacks(hosts_added, hosts_removed);
   }
 }

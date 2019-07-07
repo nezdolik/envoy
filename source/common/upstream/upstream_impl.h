@@ -352,6 +352,7 @@ public:
 
 protected:
   virtual void runUpdateCallbacks(const HostVector& hosts_added, const HostVector& hosts_removed) {
+  	
     member_update_cb_helper_.runCallbacks(priority_, hosts_added, hosts_removed);
   }
 
@@ -427,6 +428,7 @@ public:
   PrioritySetImpl() : batch_update_(false) {}
   // From PrioritySet
   Common::CallbackHandle* addMemberUpdateCb(MemberUpdateCb callback) const override {
+  	
     return member_update_cb_helper_.add(callback);
   }
   Common::CallbackHandle* addPriorityUpdateCb(PriorityUpdateCb callback) const override {

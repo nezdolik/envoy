@@ -1,6 +1,7 @@
 #include "extensions/filters/network/redis_proxy/conn_pool_impl.h"
 
 #include <cstdint>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -88,7 +89,9 @@ void InstanceImpl::ThreadLocalPool::onClusterAddOrUpdateNonVirtual(
   host_set_member_update_cb_handle_ = cluster_->prioritySet().addMemberUpdateCb(
       [this](const std::vector<Upstream::HostSharedPtr>&,
              const std::vector<Upstream::HostSharedPtr>& hosts_removed) -> void {
-        onHostsRemoved(hosts_removed);
+				std::cerr << "CP addMemberUpdateCb execute" << std::endl;
+
+				onHostsRemoved(hosts_removed);
       });
 
   ASSERT(host_address_map_.empty());

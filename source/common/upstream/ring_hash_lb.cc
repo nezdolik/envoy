@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <iostream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "common/common/assert.h"
@@ -34,6 +35,7 @@ RingHashLoadBalancer::RingHashLoadBalancer(
     throw EnvoyException(fmt::format("ring hash: minimum_ring_size ({}) > maximum_ring_size ({})",
                                      min_ring_size_, max_ring_size_));
   }
+	std::cerr << "Created ring hash LB" << std::endl;
 }
 
 RingHashLoadBalancerStats RingHashLoadBalancer::generateStats(Stats::Scope& scope) {
@@ -83,6 +85,7 @@ RingHashLoadBalancer::Ring::Ring(const NormalizedHostWeightVector& normalized_ho
                                  uint64_t max_ring_size, HashFunction hash_function,
                                  RingHashLoadBalancerStats& stats)
     : stats_(stats) {
+	std::cerr << "ring hash: building ring: " << std::this_thread::get_id() << std::endl;
   ENVOY_LOG(trace, "ring hash: building ring");
 
   // We can't do anything sensible with no hosts.

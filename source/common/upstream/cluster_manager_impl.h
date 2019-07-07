@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <iostream>
 
 #include "envoy/api/api.h"
 #include "envoy/config/bootstrap/v2/bootstrap.pb.h"
