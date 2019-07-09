@@ -1,4 +1,5 @@
-FROM envoyproxy/envoy-dev:latest
+#FROM envoyproxy/envoy-dev:latest
+FROM nezdolik:ubuntu-envoy7
 
 RUN apt-get update && apt-get -q install -y \
     curl

@@ -255,7 +255,7 @@ HostImpl::createConnection(Event::Dispatcher& dispatcher, const ClusterInfo& clu
                            Network::Address::InstanceConstSharedPtr address,
                            const Network::ConnectionSocket::OptionsSharedPtr& options,
                            Network::TransportSocketOptionsSharedPtr transport_socket_options) {
-	ENVOY_LOG(debug, "***HostImpl createConnection start: thread id={}", std::this_thread::get_id());
+	ENVOY_LOG(info, "***HostImpl createConnection start: thread id={}", std::this_thread::get_id());
 	Network::ConnectionSocket::OptionsSharedPtr connection_options;
   if (cluster.clusterSocketOptions() != nullptr) {
     if (options) {
@@ -784,7 +784,7 @@ void ClusterImplBase::onPreInitComplete() {
   }
   initialization_started_ = true;
 
-  ENVOY_LOG(debug, "initializing secondary cluster {} completed", info()->name());
+  ENVOY_LOG(info, "initializing secondary cluster {} completed", info()->name());
   init_manager_.initialize(init_watcher_);
 }
 
@@ -1012,7 +1012,7 @@ void PriorityStateManager::updateClusterPrioritySet(
     absl::optional<uint32_t> overprovisioning_factor) {
   // If local locality is not defined then skip populating per locality hosts.
   const auto& local_locality = local_info_node_.locality();
-  ENVOY_LOG(trace, "Local locality: {}", local_locality.DebugString());
+  ENVOY_LOG(info, "Local locality: {}", local_locality.DebugString());
 
   // For non-EDS, most likely the current hosts are from priority_state_[priority].first.
   HostVectorSharedPtr hosts(std::move(current_hosts));

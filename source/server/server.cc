@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include <unordered_set>
+#include <thread>
 
 #include "envoy/admin/v2alpha/config_dump.pb.h"
 #include "envoy/config/bootstrap/v2//bootstrap.pb.validate.h"
@@ -484,10 +485,12 @@ void InstanceImpl::run() {
                               init_manager_, overloadManager(), [this] { startWorkers(); });
 
   // Run the main dispatch loop waiting to exit.
-  ENVOY_LOG(info, "starting main dispatch loop");
+  ENVOY_LOG(info, "starting main dispatch loop {}", api_->threadFactory().currentThreadId());
   auto watchdog = guard_dog_->createWatchDog(api_->threadFactory().currentThreadId());
   watchdog->startWatchdog(*dispatcher_);
-  dispatcher_->post([this] { notifyCallbacksForStage(Stage::Startup); });
+  dispatcher_->post([this] {
+		ENVOY_LOG(info, "starting main dispatch loop {}", std::this_thread::get_id());
+		notifyCallbacksForStage(Stage::Startup); });
   dispatcher_->run(Event::Dispatcher::RunType::Block);
   ENVOY_LOG(info, "main dispatch loop exited");
   guard_dog_->stopWatching(watchdog);

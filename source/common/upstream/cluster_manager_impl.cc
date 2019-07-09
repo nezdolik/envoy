@@ -74,9 +74,9 @@ void ClusterManagerInitHelper::addCluster(Cluster& cluster) {
     }
   }
 
-  ENVOY_LOG(debug, "cm init: adding: cluster={} primary={} secondary={}", cluster.info()->name(),
+  ENVOY_LOG(info, "cm init: adding: cluster={} primary={} secondary={}", cluster.info()->name(),
             primary_init_clusters_.size(), secondary_init_clusters_.size());
-	ENVOY_LOG(debug, "***cm init: thread id={}", std::this_thread::get_id());
+	ENVOY_LOG(info, "***cm init: thread id={}", std::this_thread::get_id());
 
 }
 
@@ -84,7 +84,7 @@ void ClusterManagerInitHelper::onClusterInit(Cluster& cluster) {
   ASSERT(state_ != State::AllClustersInitialized);
   per_cluster_init_callback_(cluster);
   removeCluster(cluster);
-	ENVOY_LOG(debug, "***cm onClusterInit: thread id={}", std::this_thread::get_id());
+	ENVOY_LOG(info, "***cm onClusterInit: thread id={}", std::this_thread::get_id());
 }
 
 void ClusterManagerInitHelper::removeCluster(Cluster& cluster) {
@@ -105,9 +105,9 @@ void ClusterManagerInitHelper::removeCluster(Cluster& cluster) {
   // It is possible that the cluster we are removing has already been initialized, and is not
   // present in the initializer list. If so, this is fine.
   cluster_list->remove(&cluster);
-  ENVOY_LOG(debug, "cm init: init complete: cluster={} primary={} secondary={}",
+  ENVOY_LOG(info, "cm init: init complete: cluster={} primary={} secondary={}",
             cluster.info()->name(), primary_init_clusters_.size(), secondary_init_clusters_.size());
-	ENVOY_LOG(debug, "***cm init: init complete: thread id={}", std::this_thread::get_id());
+	ENVOY_LOG(info, "***cm init: init complete: thread id={}", std::this_thread::get_id());
 
 	maybeFinishInitialize();
 }
@@ -137,7 +137,7 @@ void ClusterManagerInitHelper::maybeFinishInitialize() {
       for (auto iter = secondary_init_clusters_.begin(); iter != secondary_init_clusters_.end();) {
         Cluster* cluster = *iter;
         ++iter;
-        ENVOY_LOG(debug, "initializing secondary cluster {}", cluster->info()->name());
+        ENVOY_LOG(info, "initializing secondary cluster {}", cluster->info()->name());
         cluster->initialize([cluster, this] { onClusterInit(*cluster); });
       }
     }
@@ -165,7 +165,7 @@ void ClusterManagerInitHelper::onStaticLoadComplete() {
   ASSERT(state_ == State::Loading);
   state_ = State::WaitingForStaticInitialize;
   maybeFinishInitialize();
-	ENVOY_LOG(debug, "***cm init: onStaticLoadComplete complete: thread id={}", std::this_thread::get_id());
+	ENVOY_LOG(info, "***cm init: onStaticLoadComplete complete: thread id={}", std::this_thread::get_id());
 }
 
 void ClusterManagerInitHelper::setCds(CdsApi* cds) {
@@ -323,7 +323,7 @@ void ClusterManagerImpl::onClusterInit(Cluster& cluster) {
   cluster.prioritySet().addMemberUpdateCb(
       [&cluster, this](const HostVector&, const HostVector& hosts_removed) -> void {
         // TODO(snowp): Should this be subject to merge windows?
-				ENVOY_LOG(debug, "***CM addMemberUpdateCb execute: thread id={}", std::this_thread::get_id());
+				ENVOY_LOG(info, "***CM addMemberUpdateCb execute: thread id={}", std::this_thread::get_id());
 
 				// Whenever hosts are removed from the cluster, we make each TLS cluster drain it's
         // connection pools for the removed hosts.
@@ -369,7 +369,7 @@ void ClusterManagerImpl::onClusterInit(Cluster& cluster) {
       postThreadLocalClusterUpdate(cluster, priority, hosts_added, hosts_removed);
     }
 
-		ENVOY_LOG(debug, "***CM addPriorityUpdateCb execute: thread id={}", std::this_thread::get_id());
+		ENVOY_LOG(info, "***CM addPriorityUpdateCb execute: thread id={}", std::this_thread::get_id());
 
 	});
 
@@ -443,7 +443,9 @@ bool ClusterManagerImpl::scheduleUpdate(const Cluster& cluster, uint32_t priorit
 
 void ClusterManagerImpl::applyUpdates(const Cluster& cluster, uint32_t priority,
                                       PendingUpdates& updates) {
-  // Deliver pending updates.
+	std::cerr << "applyUpdates start" << std::this_thread::get_id() << std::endl;
+
+	// Deliver pending updates.
 
   // Remember that these merged updates are _only_ for updates related to
   // HC/weight/metadata changes. That's why added/removed are empty. All
@@ -464,7 +466,9 @@ bool ClusterManagerImpl::addOrUpdateCluster(const envoy::api::v2::Cluster& clust
   // We don't allow updates to statically configured clusters in the main configuration. We check
   // both the warming clusters and the active clusters to see if we need an update or the update
   // should be blocked.
-  const std::string cluster_name = cluster.name();
+	std::cerr << "addOrUpdateCluster start" << std::this_thread::get_id() << std::endl;
+
+	const std::string cluster_name = cluster.name();
   const auto existing_active_cluster = active_clusters_.find(cluster_name);
   const auto existing_warming_cluster = warming_clusters_.find(cluster_name);
   const uint64_t new_hash = MessageUtil::hash(cluster);
@@ -530,15 +534,17 @@ bool ClusterManagerImpl::addOrUpdateCluster(const envoy::api::v2::Cluster& clust
 }
 
 void ClusterManagerImpl::createOrUpdateThreadLocalCluster(ClusterData& cluster) {
-  tls_->runOnAllThreads([this, new_cluster = cluster.cluster_->info(),
+	std::cerr << "createOrUpdateThreadLocalCluster start" << std::this_thread::get_id() << std::endl;
+
+	tls_->runOnAllThreads([this, new_cluster = cluster.cluster_->info(),
                          thread_aware_lb_factory = cluster.loadBalancerFactory()]() -> void {
     ThreadLocalClusterManagerImpl& cluster_manager =
         tls_->getTyped<ThreadLocalClusterManagerImpl>();
 
     if (cluster_manager.thread_local_clusters_.count(new_cluster->name()) > 0) {
-      ENVOY_LOG(debug, "updating TLS cluster {}", new_cluster->name());
+      ENVOY_LOG(info, "updating TLS cluster {}", new_cluster->name());
     } else {
-      ENVOY_LOG(debug, "adding TLS cluster {}", new_cluster->name());
+      ENVOY_LOG(info, "adding TLS cluster {}", new_cluster->name());
     }
 
     auto thread_local_cluster = new ThreadLocalClusterManagerImpl::ClusterEntry(
@@ -565,7 +571,7 @@ bool ClusterManagerImpl::removeCluster(const std::string& cluster_name) {
           tls_->getTyped<ThreadLocalClusterManagerImpl>();
 
       ASSERT(cluster_manager.thread_local_clusters_.count(cluster_name) == 1);
-      ENVOY_LOG(debug, "removing TLS cluster {}", cluster_name);
+      ENVOY_LOG(info, "removing TLS cluster {}", cluster_name);
       cluster_manager.thread_local_clusters_.erase(cluster_name);
       for (auto& cb : cluster_manager.update_callbacks_) {
         cb->onClusterRemoval(cluster_name);
@@ -738,7 +744,7 @@ void ClusterManagerImpl::postThreadLocalClusterUpdate(const Cluster& cluster, ui
                                                       const HostVector& hosts_removed) {
   const auto& host_set = cluster.prioritySet().hostSetsPerPriority()[priority];
 	std::cerr << "postThreadLocalClusterUpdate start" << std::endl;
-	ENVOY_LOG(debug, "***CM postThreadLocalClusterUpdate start: thread id={}", std::this_thread::get_id());
+	ENVOY_LOG(info, "***CM postThreadLocalClusterUpdate start: thread id={}", std::this_thread::get_id());
 
 
 	tls_->runOnAllThreads([this, name = cluster.info()->name(), priority,
@@ -779,7 +785,7 @@ Host::CreateConnectionData ClusterManagerImpl::tcpConnForCluster(
                        std::make_unique<ThreadLocalClusterManagerImpl::TcpConnContainer>(
                            cluster_manager, logical_host, *conn_info.connection_));
     }
-		ENVOY_LOG(debug, "***CM tcpConnForCluster start: thread id={}", std::this_thread::get_id());
+		ENVOY_LOG(info, "***CM tcpConnForCluster start: thread id={}", std::this_thread::get_id());
 
 		return conn_info;
   } else {
@@ -841,7 +847,7 @@ ClusterManagerImpl::ThreadLocalClusterManagerImpl::ThreadLocalClusterManagerImpl
     : parent_(parent), thread_local_dispatcher_(dispatcher) {
   // If local cluster is defined then we need to initialize it first.
   if (local_cluster_name) {
-    ENVOY_LOG(debug, "adding TLS local cluster {}", local_cluster_name.value());
+    ENVOY_LOG(info, "adding TLS local cluster {}", local_cluster_name.value());
     auto& local_cluster = parent.active_clusters_.at(local_cluster_name.value());
     thread_local_clusters_[local_cluster_name.value()] = std::make_unique<ClusterEntry>(
         *this, local_cluster->cluster_->info(), local_cluster->loadBalancerFactory());
@@ -857,7 +863,7 @@ ClusterManagerImpl::ThreadLocalClusterManagerImpl::ThreadLocalClusterManagerImpl
       continue;
     }
 
-    ENVOY_LOG(debug, "adding TLS initial cluster {}", cluster.first);
+    ENVOY_LOG(info, "adding TLS initial cluster {}", cluster.first);
     ASSERT(thread_local_clusters_.count(cluster.first) == 0);
     thread_local_clusters_[cluster.first] = std::make_unique<ClusterEntry>(
         *this, cluster.second->cluster_->info(), cluster.second->loadBalancerFactory());
@@ -869,7 +875,7 @@ ClusterManagerImpl::ThreadLocalClusterManagerImpl::~ThreadLocalClusterManagerImp
   // cluster pointers. Currently we have to free all non-local clusters before we free
   // the local cluster. This is because non-local clusters with a zone aware load balancer have a
   // member update callback registered with the local cluster.
-  ENVOY_LOG(debug, "shutting down thread local cluster manager");
+  ENVOY_LOG(info, "shutting down thread local cluster manager");
   destroying_ = true;
   host_http_conn_pool_map_.clear();
   host_tcp_conn_pool_map_.clear();
@@ -980,7 +986,9 @@ void ClusterManagerImpl::ThreadLocalClusterManagerImpl::drainTcpConnPools(
 
 void ClusterManagerImpl::ThreadLocalClusterManagerImpl::removeTcpConn(
     const HostConstSharedPtr& host, Network::ClientConnection& connection) {
-  auto host_tcp_conn_map_it = host_tcp_conn_map_.find(host);
+	std::cerr << "removeTcpConn start" << std::this_thread::get_id() << std::endl;
+
+	auto host_tcp_conn_map_it = host_tcp_conn_map_.find(host);
   ASSERT(host_tcp_conn_map_it != host_tcp_conn_map_.end());
   TcpConnectionsMap& connections_map = host_tcp_conn_map_it->second;
   auto it = connections_map.find(&connection);
@@ -995,11 +1003,13 @@ void ClusterManagerImpl::ThreadLocalClusterManagerImpl::removeTcpConn(
 void ClusterManagerImpl::ThreadLocalClusterManagerImpl::removeHosts(const std::string& name,
                                                                     const HostVector& hosts_removed,
                                                                     ThreadLocal::Slot& tls) {
-  ThreadLocalClusterManagerImpl& config = tls.getTyped<ThreadLocalClusterManagerImpl>();
+	std::cerr << "removeHosts start" << std::this_thread::get_id() << std::endl;
+
+	ThreadLocalClusterManagerImpl& config = tls.getTyped<ThreadLocalClusterManagerImpl>();
 
   ASSERT(config.thread_local_clusters_.find(name) != config.thread_local_clusters_.end());
   const auto& cluster_entry = config.thread_local_clusters_[name];
-  ENVOY_LOG(debug, "removing hosts for TLS cluster {} removed {}", name, hosts_removed.size());
+  ENVOY_LOG(info, "removing hosts for TLS cluster {} removed {}", name, hosts_removed.size());
 
   // We need to go through and purge any connection pools for hosts that got deleted.
   // Even if two hosts actually point to the same address this will be safe, since if a
@@ -1012,13 +1022,13 @@ void ClusterManagerImpl::ThreadLocalClusterManagerImpl::updateClusterMembership(
     LocalityWeightsConstSharedPtr locality_weights, const HostVector& hosts_added,
     const HostVector& hosts_removed, ThreadLocal::Slot& tls, uint64_t overprovisioning_factor) {
 	std::cerr << "updateClusterMembership start" << std::this_thread::get_id() << std::endl;
-	ENVOY_LOG(debug, "***TLCM updateClusterMembership start: thread id={}", std::this_thread::get_id());
+	ENVOY_LOG(info, "***TLCM updateClusterMembership start: thread id={}", std::this_thread::get_id());
 
 	ThreadLocalClusterManagerImpl& config = tls.getTyped<ThreadLocalClusterManagerImpl>();
 
   ASSERT(config.thread_local_clusters_.find(name) != config.thread_local_clusters_.end());
   const auto& cluster_entry = config.thread_local_clusters_[name];
-  ENVOY_LOG(debug, "membership update for TLS cluster {} added {} removed {}", name,
+  ENVOY_LOG(info, "membership update for TLS cluster {} added {} removed {}", name,
             hosts_added.size(), hosts_removed.size());
   cluster_entry->priority_set_.updateHosts(priority, std::move(update_hosts_params),
                                            std::move(locality_weights), hosts_added, hosts_removed,
@@ -1026,7 +1036,7 @@ void ClusterManagerImpl::ThreadLocalClusterManagerImpl::updateClusterMembership(
 
   // If an LB is thread aware, create a new worker local LB on membership changes.
   if (cluster_entry->lb_factory_ != nullptr) {
-    ENVOY_LOG(debug, "re-creating local LB for TLS cluster {}", name);
+    ENVOY_LOG(info, "re-creating local LB for TLS cluster {}", name);
     cluster_entry->lb_ = cluster_entry->lb_factory_->create();
   }
 }
@@ -1171,7 +1181,7 @@ ClusterManagerImpl::ThreadLocalClusterManagerImpl::ClusterEntry::connPool(
     ResourcePriority priority, Http::Protocol protocol, LoadBalancerContext* context) {
   HostConstSharedPtr host = lb_->chooseHost(context);
   if (!host) {
-    ENVOY_LOG(debug, "no healthy host for HTTP connection pool");
+    ENVOY_LOG(info, "no healthy host for HTTP connection pool");
     cluster_info_->stats().upstream_cx_none_healthy_.inc();
     return nullptr;
   }
@@ -1218,7 +1228,7 @@ ClusterManagerImpl::ThreadLocalClusterManagerImpl::ClusterEntry::tcpConnPool(
     Network::TransportSocketOptionsSharedPtr transport_socket_options) {
   HostConstSharedPtr host = lb_->chooseHost(context);
   if (!host) {
-    ENVOY_LOG(debug, "no healthy host for TCP connection pool");
+    ENVOY_LOG(info, "no healthy host for TCP connection pool");
     cluster_info_->stats().upstream_cx_none_healthy_.inc();
     return nullptr;
   }

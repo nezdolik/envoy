@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <memory>
+#include <thread>
 
 namespace Envoy {
 namespace Upstream {
@@ -133,12 +134,15 @@ void ThreadAwareLoadBalancerBase::refresh() {
 
 HostConstSharedPtr
 ThreadAwareLoadBalancerBase::LoadBalancerImpl::chooseHost(LoadBalancerContext* context) {
+	std::cerr << "ThreadAwareLoadBalancerBase::LoadBalancerImpl::chooseHost 1:" << std::this_thread::get_id() << std::endl;
   // Make sure we correctly return nullptr for any early chooseHost() calls.
   if (per_priority_state_ == nullptr) {
     return nullptr;
   }
+	std::cerr << "ThreadAwareLoadBalancerBase::LoadBalancerImpl::chooseHost 2: " << std::this_thread::get_id() << std::endl;
 
-  // If there is no hash in the context, just choose a random value (this effectively becomes
+
+	// If there is no hash in the context, just choose a random value (this effectively becomes
   // the random LB but it won't crash if someone configures it this way).
   // computeHashKey() may be computed on demand, so get it only once.
   absl::optional<uint64_t> hash;
@@ -159,8 +163,9 @@ ThreadAwareLoadBalancerBase::LoadBalancerImpl::chooseHost(LoadBalancerContext* c
 
 LoadBalancerPtr ThreadAwareLoadBalancerBase::LoadBalancerFactoryImpl::create() {
   auto lb = std::make_unique<LoadBalancerImpl>(stats_, random_);
+	std::cerr << "ThreadAwareLoadBalancerBase::LoadBalancerFactoryImpl::create: " << std::this_thread::get_id() << std::endl;
 
-  // We must protect current_lb_ via a RW lock since it is accessed and written to by multiple
+	// We must protect current_lb_ via a RW lock since it is accessed and written to by multiple
   // threads. All complex processing has already been precalculated however.
   absl::ReaderMutexLock lock(&mutex_);
   lb->healthy_per_priority_load_ = healthy_per_priority_load_;

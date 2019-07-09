@@ -29,7 +29,7 @@ static_resources:
   - name: local_service
     connect_timeout: 0.25s
     type: strict_dns
-    lb_policy: round_robin
+    lb_policy: ring_hash
     load_assignment:
       cluster_name: local_service
       endpoints:

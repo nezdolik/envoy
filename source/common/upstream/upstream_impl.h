@@ -164,7 +164,8 @@ protected:
  */
 class HostImpl : public HostDescriptionImpl,
                  public Host,
-                 public std::enable_shared_from_this<HostImpl> {
+                 public std::enable_shared_from_this<HostImpl>,
+	               protected Logger::Loggable<Logger::Id::upstream>{
 public:
   HostImpl(ClusterInfoConstSharedPtr cluster, const std::string& hostname,
            Network::Address::InstanceConstSharedPtr address,

@@ -48,7 +48,7 @@ void DispatcherImpl::initializeStats(Stats::Scope& scope, const std::string& pre
     stats_ = std::make_unique<DispatcherStats>(
         DispatcherStats{ALL_DISPATCHER_STATS(POOL_HISTOGRAM_PREFIX(scope, stats_prefix_ + "."))});
     base_scheduler_.initializeStats(stats_.get());
-    ENVOY_LOG(debug, "running {} on thread {}", stats_prefix_, run_tid_->debugString());
+    ENVOY_LOG(info, "running {} on thread {}", stats_prefix_, run_tid_->debugString());
   });
 }
 
@@ -88,7 +88,7 @@ Network::ConnectionPtr
 DispatcherImpl::createServerConnection(Network::ConnectionSocketPtr&& socket,
                                        Network::TransportSocketPtr&& transport_socket) {
   ASSERT(isThreadSafe());
-	ENVOY_LOG(debug, "***Dispatcher createServerConnection start: thread id={}", std::this_thread::get_id());
+	ENVOY_LOG(info, "***Dispatcher createServerConnection start: thread id={}", std::this_thread::get_id());
 	return std::make_unique<Network::ConnectionImpl>(*this, std::move(socket),
                                                    std::move(transport_socket), true);
 }
@@ -99,7 +99,7 @@ DispatcherImpl::createClientConnection(Network::Address::InstanceConstSharedPtr 
                                        Network::TransportSocketPtr&& transport_socket,
                                        const Network::ConnectionSocket::OptionsSharedPtr& options) {
   ASSERT(isThreadSafe());
-	ENVOY_LOG(debug, "***Dispatcher createClientConnection start: thread id={}", std::this_thread::get_id());
+	ENVOY_LOG(info, "***Dispatcher createClientConnection start: thread id={}", std::this_thread::get_id());
 
 	return std::make_unique<Network::ClientConnectionImpl>(*this, address, source_address,
                                                          std::move(transport_socket), options);
@@ -108,7 +108,7 @@ DispatcherImpl::createClientConnection(Network::Address::InstanceConstSharedPtr 
 Network::DnsResolverSharedPtr DispatcherImpl::createDnsResolver(
     const std::vector<Network::Address::InstanceConstSharedPtr>& resolvers) {
   ASSERT(isThreadSafe());
-	ENVOY_LOG(debug, "***Dispatcher createDnsResolver start: thread id={}", std::this_thread::get_id());
+	ENVOY_LOG(info, "***Dispatcher createDnsResolver start: thread id={}", std::this_thread::get_id());
 
 	return Network::DnsResolverSharedPtr{new Network::DnsResolverImpl(*this, resolvers)};
 }
@@ -116,14 +116,14 @@ Network::DnsResolverSharedPtr DispatcherImpl::createDnsResolver(
 FileEventPtr DispatcherImpl::createFileEvent(int fd, FileReadyCb cb, FileTriggerType trigger,
                                              uint32_t events) {
   ASSERT(isThreadSafe());
-	ENVOY_LOG(debug, "***Dispatcher createFileEvent start: thread id={}", std::this_thread::get_id());
+	ENVOY_LOG(info, "***Dispatcher createFileEvent start: thread id={}", std::this_thread::get_id());
 
 	return FileEventPtr{new FileEventImpl(*this, fd, cb, trigger, events)};
 }
 
 Filesystem::WatcherPtr DispatcherImpl::createFilesystemWatcher() {
   ASSERT(isThreadSafe());
-	ENVOY_LOG(debug, "***Dispatcher createFilesystemWatcher start: thread id={}", std::this_thread::get_id());
+	ENVOY_LOG(info, "***Dispatcher createFilesystemWatcher start: thread id={}", std::this_thread::get_id());
 	return Filesystem::WatcherPtr{new Filesystem::WatcherImpl(*this)};
 }
 
@@ -131,7 +131,7 @@ Network::ListenerPtr
 DispatcherImpl::createListener(Network::Socket& socket, Network::ListenerCallbacks& cb,
                                bool bind_to_port, bool hand_off_restored_destination_connections) {
   ASSERT(isThreadSafe());
-	ENVOY_LOG(debug, "***Dispatcher createListener start: thread id={}", std::this_thread::get_id());
+	ENVOY_LOG(info, "***Dispatcher createListener start: thread id={}", std::this_thread::get_id());
 
 	return Network::ListenerPtr{new Network::ListenerImpl(*this, socket, cb, bind_to_port,
                                                         hand_off_restored_destination_connections)};
@@ -161,7 +161,7 @@ void DispatcherImpl::exit() { base_scheduler_.loopExit(); }
 
 SignalEventPtr DispatcherImpl::listenForSignal(int signal_num, SignalCb cb) {
   ASSERT(isThreadSafe());
-	ENVOY_LOG(debug, "***Dispatcher listenForSignal start: thread id={}", std::this_thread::get_id());
+	ENVOY_LOG(info, "***Dispatcher listenForSignal start: thread id={}", std::this_thread::get_id());
 
 	return SignalEventPtr{new SignalEventImpl(*this, signal_num, cb)};
 }
@@ -188,7 +188,7 @@ void DispatcherImpl::run(RunType type) {
   // event_base_once() before some other event, the other event might get called first.
   runPostCallbacks();
   base_scheduler_.run(type);
-	ENVOY_LOG(debug, "***Dispatcher run start: thread id={}", std::this_thread::get_id());
+	ENVOY_LOG(info, "***Dispatcher run start: thread id={}", std::this_thread::get_id());
 
 }
 
@@ -208,11 +208,11 @@ void DispatcherImpl::runPostCallbacks() {
       }
       callback = post_callbacks_.front();
       post_callbacks_.pop_front();
-			ENVOY_LOG(debug, "***Dispatcher runPostCallbacks start: thread id={}", std::this_thread::get_id());
+			ENVOY_LOG(info, "***Dispatcher runPostCallbacks start: thread id={}", std::this_thread::get_id());
 
 		}
     callback();
-		ENVOY_LOG(debug, "***Dispatcher runPostCallbacks start: thread id={}", std::this_thread::get_id());
+		ENVOY_LOG(info, "***Dispatcher runPostCallbacks start: thread id={}", std::this_thread::get_id());
 
 	}
 }

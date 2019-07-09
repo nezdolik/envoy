@@ -86,7 +86,7 @@ RingHashLoadBalancer::Ring::Ring(const NormalizedHostWeightVector& normalized_ho
                                  RingHashLoadBalancerStats& stats)
     : stats_(stats) {
 	std::cerr << "ring hash: building ring: " << std::this_thread::get_id() << std::endl;
-  ENVOY_LOG(trace, "ring hash: building ring");
+  ENVOY_LOG(info, "ring hash: building ring");
 
   // We can't do anything sensible with no hosts.
   if (normalized_host_weights.empty()) {
@@ -160,7 +160,7 @@ RingHashLoadBalancer::Ring::Ring(const NormalizedHostWeightVector& normalized_ho
               ? MurmurHash::murmurHash2_64(hash_key, MurmurHash::STD_HASH_SEED)
               : HashUtil::xxHash64(hash_key);
 
-      ENVOY_LOG(trace, "ring hash: hash_key={} hash={}", hash_key.data(), hash);
+      ENVOY_LOG(info, "ring hash: hash_key={} hash={}", hash_key.data(), hash);
       ring_.push_back({hash, host});
       ++i;
       ++current_hashes;
@@ -172,9 +172,9 @@ RingHashLoadBalancer::Ring::Ring(const NormalizedHostWeightVector& normalized_ho
   std::sort(ring_.begin(), ring_.end(), [](const RingEntry& lhs, const RingEntry& rhs) -> bool {
     return lhs.hash_ < rhs.hash_;
   });
-  if (ENVOY_LOG_CHECK_LEVEL(trace)) {
+  if (ENVOY_LOG_CHECK_LEVEL(info)) {
     for (const auto& entry : ring_) {
-      ENVOY_LOG(trace, "ring hash: host={} hash={}", entry.host_->address()->asString(),
+      ENVOY_LOG(info, "ring hash: host={} hash={}", entry.host_->address()->asString(),
                 entry.hash_);
     }
   }

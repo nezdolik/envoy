@@ -89,7 +89,7 @@ void InstanceImpl::ThreadLocalPool::onClusterAddOrUpdateNonVirtual(
   host_set_member_update_cb_handle_ = cluster_->prioritySet().addMemberUpdateCb(
       [this](const std::vector<Upstream::HostSharedPtr>&,
              const std::vector<Upstream::HostSharedPtr>& hosts_removed) -> void {
-				std::cerr << "CP addMemberUpdateCb execute" << std::endl;
+				std::cerr << "***CP addMemberUpdateCb execute" << std::endl;
 
 				onHostsRemoved(hosts_removed);
       });
