@@ -27,6 +27,7 @@
 #include "common/router/config_impl.h"
 #include "common/router/debug_config.h"
 #include "common/router/retry_state_impl.h"
+#include "common/runtime/runtime_impl.h"
 #include "common/tracing/http_tracer_impl.h"
 
 #include "extensions/filters/http/well_known_names.h"
@@ -151,27 +152,40 @@ FilterUtility::finalTimeout(const RouteEntry& route, Http::HeaderMap& request_he
   timeout.per_try_timeout_ = route.retryPolicy().perTryTimeout();
 
   uint64_t header_timeout;
-  // Check if there is timeout set by egress envoy.
-  // If present, use that value as route timeout and don't override `x-envoy-expected-timeout-ms`
-  // header.
-  Http::HeaderEntry* header_expected_timeout_entry =
-      request_headers.EnvoyExpectedRequestTimeoutMs();
-  if (header_expected_timeout_entry) {
-    // This will prevent from overriding `x-envoy-expected-timeout-ms` header.
-    insert_envoy_expected_request_timeout_ms = false;
-    if (absl::SimpleAtoi(header_expected_timeout_entry->value().getStringView(), &header_timeout)) {
-      timeout.global_timeout_ = std::chrono::milliseconds(header_timeout);
+  const bool propagate_exp_rq_timeout_via_egress_ingress_envoys = Runtime::runtimeFeatureEnabled(
+      "envoy.reloadable_features.propagate_exp_rq_timeout_via_egress_ingress_envoys");
+
+  if (propagate_exp_rq_timeout_via_egress_ingress_envoys) {
+    // Check if there is timeout set by egress envoy.
+    // If present, use that value as route timeout and don't override `x-envoy-expected-timeout-ms`
+    // header.
+    Http::HeaderEntry* header_expected_timeout_entry =
+        request_headers.EnvoyExpectedRequestTimeoutMs();
+    if (header_expected_timeout_entry) {
+      // This will prevent from overriding `x-envoy-expected-timeout-ms` header.
+      insert_envoy_expected_request_timeout_ms = false;
+      if (absl::SimpleAtoi(header_expected_timeout_entry->value().getStringView(),
+                           &header_timeout)) {
+        timeout.global_timeout_ = std::chrono::milliseconds(header_timeout);
+      }
+    } else {
+      Http::HeaderEntry* header_timeout_entry = request_headers.EnvoyUpstreamRequestTimeoutMs();
+      if (header_timeout_entry) {
+        if (absl::SimpleAtoi(header_timeout_entry->value().getStringView(), &header_timeout)) {
+          timeout.global_timeout_ = std::chrono::milliseconds(header_timeout);
+        }
+      }
     }
+    request_headers.removeEnvoyUpstreamRequestTimeoutMs();
   } else {
     Http::HeaderEntry* header_timeout_entry = request_headers.EnvoyUpstreamRequestTimeoutMs();
     if (header_timeout_entry) {
       if (absl::SimpleAtoi(header_timeout_entry->value().getStringView(), &header_timeout)) {
         timeout.global_timeout_ = std::chrono::milliseconds(header_timeout);
       }
+      request_headers.removeEnvoyUpstreamRequestTimeoutMs();
     }
   }
-
-  request_headers.removeEnvoyUpstreamRequestTimeoutMs();
 
   // See if there is a per try/retry timeout. If it's >= global we just ignore it.
   Http::HeaderEntry* per_try_timeout_entry = request_headers.EnvoyUpstreamRequestPerTryTimeoutMs();
