@@ -10,11 +10,7 @@
 
 namespace Envoy {
 namespace ProtobufMessage {
-
-const char deprecation_error[] = " If continued use of this field is absolutely necessary, "
-                                 "see " ENVOY_DOC_URL_RUNTIME_OVERRIDE_DEPRECATED " for "
-                                 "how to apply a temporary and highly discouraged override.";
-
+  
 class NullValidationVisitorImpl : public ValidationVisitor {
 public:
   // Envoy::ProtobufMessage::ValidationVisitor
