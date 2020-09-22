@@ -256,7 +256,7 @@ public:
           .set_string_value(m_it.second);
     }
 
-    return makeTestHost(info_, url, m);
+    return makeTestHost(info_, url, m, dispatcher_.timeSource());
   }
   HostSharedPtr makeHost(const std::string& url, const HostListMetadata& metadata) {
     envoy::config::core::v3::Metadata m;
@@ -268,7 +268,7 @@ public:
       }
     }
 
-    return makeTestHost(info_, url, m);
+    return makeTestHost(info_, url, m, dispatcher_.timeSource());
   }
 
   ProtobufWkt::Struct makeDefaultSubset(HostMetadata metadata) {
@@ -473,6 +473,7 @@ public:
   envoy::config::cluster::v3::Cluster::CommonLbConfig common_config_;
   NiceMock<Runtime::MockLoader> runtime_;
   NiceMock<Random::MockRandomGenerator> random_;
+  NiceMock<Event::MockDispatcher> dispatcher_; 
   Stats::IsolatedStoreImpl stats_store_;
   Stats::ScopePtr scope_;
   ClusterStats stats_;
@@ -1421,7 +1422,7 @@ TEST_F(SubsetLoadBalancerTest, IgnoresHostsWithoutMetadata) {
   EXPECT_CALL(subset_info_, subsetSelectors()).WillRepeatedly(ReturnRef(subset_selectors));
 
   HostVector hosts;
-  hosts.emplace_back(makeTestHost(info_, "tcp://127.0.0.1:80"));
+  hosts.emplace_back(makeTestHost(info_, "tcp://127.0.0.1:80", dispatcher_.timeSource()));
   hosts.emplace_back(makeHost("tcp://127.0.0.1:81", {{"version", "1.0"}}));
 
   host_set_.hosts_ = hosts;

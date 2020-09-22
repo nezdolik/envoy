@@ -65,7 +65,7 @@ public:
     const double equal_weight = static_cast<double>(1.0 / num_hosts);
     for (uint32_t i = 0; i < num_hosts; i++) {
       normalized_host_weights.push_back(
-          {makeTestHost(info_, fmt::format("tcp://127.0.0.1{}:90", i)), equal_weight});
+          {makeTestHost(info_, fmt::format("tcp://127.0.0.1{}:90", i)), time_source_, equal_weight});
     }
   }
 
@@ -74,7 +74,7 @@ public:
                    NormalizedHostWeightVector& ring) {
     const double equal_weight = static_cast<double>(1.0 / num_hosts);
     for (uint32_t i = 0; i < num_hosts; i++) {
-      HostConstSharedPtr h = makeTestHost(info_, fmt::format("tcp://127.0.0.1{}:90", i));
+      HostConstSharedPtr h = makeTestHost(info_, fmt::format("tcp://127.0.0.1{}:90", i), time_source_);
       ring.push_back({h, equal_weight});
       ring.push_back({h, equal_weight});
       hosts.push_back({h, equal_weight});
@@ -86,6 +86,7 @@ public:
   std::shared_ptr<MockClusterInfo> info_{new NiceMock<MockClusterInfo>()};
 
   HostOverloadFactorPredicate host_overload_factor_predicate_;
+  NiceMock<MockTimeSystem> time_source_;
 };
 
 // Works correctly without any hosts.

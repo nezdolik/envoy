@@ -14,6 +14,7 @@
 #include "common/upstream/upstream_impl.h"
 
 #include "test/common/upstream/utility.h"
+#include "test/mocks/event/mocks.h"
 #include "test/mocks/runtime/mocks.h"
 #include "test/mocks/upstream/cluster_info.h"
 #include "test/mocks/upstream/host_set.h"
@@ -30,14 +31,14 @@ namespace Upstream {
 namespace {
 
 static HostSharedPtr newTestHost(Upstream::ClusterInfoConstSharedPtr cluster,
-                                 const std::string& url, uint32_t weight = 1,
+                                 const std::string& url, TimeSource& time_source, uint32_t weight = 1,
                                  const std::string& zone = "") {
   envoy::config::core::v3::Locality locality;
   locality.set_zone(zone);
   return HostSharedPtr{
       new HostImpl(cluster, "", Network::Utility::resolveUrl(url), nullptr, weight, locality,
                    envoy::config::endpoint::v3::Endpoint::HealthCheckConfig::default_instance(), 0,
-                   envoy::config::core::v3::UNKNOWN)};
+                   envoy::config::core::v3::UNKNOWN, time_source)};
 }
 
 // Simulate weighted LR load balancer.
@@ -201,7 +202,7 @@ public:
       const std::string zone = std::to_string(i);
       for (uint32_t j = 0; j < hosts[i]; ++j) {
         const std::string url = fmt::format("tcp://host.{}.{}:80", i, j);
-        ret->push_back(newTestHost(info_, url, 1, zone));
+        ret->push_back(newTestHost(info_, url, dispatcher_.timeSource(), 1, zone));
       }
     }
 
@@ -220,7 +221,7 @@ public:
 
       for (uint32_t j = 0; j < hosts[i]; ++j) {
         const std::string url = fmt::format("tcp://host.{}.{}:80", i, j);
-        zone_hosts.push_back(newTestHost(info_, url, 1, zone));
+        zone_hosts.push_back(newTestHost(info_, url, dispatcher_.timeSource(), 1, zone));
       }
 
       ret.push_back(std::move(zone_hosts));
@@ -237,6 +238,7 @@ public:
   MockHostSet& host_set_ = *priority_set_.getMockHostSet(0);
   std::shared_ptr<MockClusterInfo> info_{new NiceMock<MockClusterInfo>()};
   NiceMock<Runtime::MockLoader> runtime_;
+  NiceMock<Event::MockDispatcher> dispatcher_;
   Random::RandomGeneratorImpl random_;
   Stats::IsolatedStoreImpl stats_store_;
   ClusterStats stats_;

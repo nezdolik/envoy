@@ -53,7 +53,7 @@ public:
   ConnPoolImplForTest(Event::MockDispatcher& dispatcher,
                       Upstream::ClusterInfoConstSharedPtr cluster,
                       NiceMock<Event::MockSchedulableCallback>* upstream_ready_cb)
-      : ConnPoolImpl(dispatcher, random_, Upstream::makeTestHost(cluster, "tcp://127.0.0.1:9000"),
+      : ConnPoolImpl(dispatcher, random_, Upstream::makeTestHost(cluster, "tcp://127.0.0.1:9000", dispatcher.timeSource()),
                      Upstream::ResourcePriority::Default, nullptr, nullptr),
         api_(Api::createApiForTest()), mock_dispatcher_(dispatcher),
         mock_upstream_ready_cb_(upstream_ready_cb) {}
@@ -102,7 +102,7 @@ public:
             }
           }
         },
-        Upstream::makeTestHost(cluster, "tcp://127.0.0.1:9000"), *test_client.client_dispatcher_);
+        Upstream::makeTestHost(cluster, "tcp://127.0.0.1:9000", *test_client.client_dispatcher_.timeSource()), *test_client.client_dispatcher_);
     EXPECT_CALL(*test_client.connect_timer_, enableTimer(_, _));
     EXPECT_CALL(mock_dispatcher_, createClientConnection_(_, _, _, _))
         .WillOnce(Return(test_client.connection_));

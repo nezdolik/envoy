@@ -13,6 +13,7 @@
 
 #include "test/benchmark/main.h"
 #include "test/common/upstream/utility.h"
+#include "test/mocks/common.h"
 #include "test/mocks/upstream/cluster_info.h"
 
 #include "benchmark/benchmark.h"
@@ -41,9 +42,9 @@ public:
             (*metadata.mutable_filter_metadata())[Config::MetadataFilters::get().ENVOY_LB];
         (*map.mutable_fields())[std::string(metadata_key)] = value;
 
-        hosts.push_back(makeTestHost(info_, url, metadata, effective_weight));
+        hosts.push_back(makeTestHost(info_, url, metadata, time_system_, effective_weight));
       } else {
-        hosts.push_back(makeTestHost(info_, url, effective_weight));
+        hosts.push_back(makeTestHost(info_, url, time_system_, effective_weight));
       }
     }
 
@@ -70,6 +71,7 @@ public:
   Random::RandomGeneratorImpl random_;
   envoy::config::cluster::v3::Cluster::CommonLbConfig common_config_;
   std::shared_ptr<MockClusterInfo> info_{new NiceMock<MockClusterInfo>()};
+  NiceMock<MockTimeSystem> time_system_;
 };
 
 class RoundRobinTester : public BaseTester {

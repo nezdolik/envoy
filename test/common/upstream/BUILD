@@ -217,6 +217,7 @@ envoy_cc_test(
         "//source/common/upstream:host_utility_lib",
         "//source/common/upstream:upstream_includes",
         "//source/common/upstream:upstream_lib",
+        "//test/mocks/event:event_mocks",
         "//test/mocks/upstream:cluster_info_mocks",
     ],
 )
@@ -252,6 +253,7 @@ envoy_cc_test(
         "//source/common/upstream:load_balancer_lib",
         "//source/common/upstream:upstream_includes",
         "//source/common/upstream:upstream_lib",
+        "//test/mocks/event:event_mocks",
         "//test/mocks/runtime:runtime_mocks",
         "//test/mocks/upstream:cluster_info_mocks",
         "//test/mocks/upstream:host_set_mocks",

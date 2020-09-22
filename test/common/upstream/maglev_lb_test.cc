@@ -66,6 +66,7 @@ public:
   NiceMock<Runtime::MockLoader> runtime_;
   NiceMock<Random::MockRandomGenerator> random_;
   std::unique_ptr<MaglevLoadBalancer> lb_;
+  NiceMock<MockTimeSystem> time_system_;
 };
 
 // Works correctly without any hosts.
@@ -96,9 +97,9 @@ TEST_F(MaglevLoadBalancerTest, DefaultMaglevTableSize) {
 // Basic sanity tests.
 TEST_F(MaglevLoadBalancerTest, Basic) {
   host_set_.hosts_ = {
-      makeTestHost(info_, "tcp://127.0.0.1:90"), makeTestHost(info_, "tcp://127.0.0.1:91"),
-      makeTestHost(info_, "tcp://127.0.0.1:92"), makeTestHost(info_, "tcp://127.0.0.1:93"),
-      makeTestHost(info_, "tcp://127.0.0.1:94"), makeTestHost(info_, "tcp://127.0.0.1:95")};
+      makeTestHost(info_, "tcp://127.0.0.1:90", time_system_), makeTestHost(info_, "tcp://127.0.0.1:91", time_system_),
+      makeTestHost(info_, "tcp://127.0.0.1:92", time_system_), makeTestHost(info_, "tcp://127.0.0.1:93", time_system_),
+      makeTestHost(info_, "tcp://127.0.0.1:94", time_system_), makeTestHost(info_, "tcp://127.0.0.1:95", time_system_)};
   host_set_.healthy_hosts_ = host_set_.hosts_;
   host_set_.runCallbacks({}, {});
   init(7);
@@ -126,12 +127,12 @@ TEST_F(MaglevLoadBalancerTest, Basic) {
 
 // Basic with hostname.
 TEST_F(MaglevLoadBalancerTest, BasicWithHostName) {
-  host_set_.hosts_ = {makeTestHost(info_, "90", "tcp://127.0.0.1:90"),
-                      makeTestHost(info_, "91", "tcp://127.0.0.1:91"),
-                      makeTestHost(info_, "92", "tcp://127.0.0.1:92"),
-                      makeTestHost(info_, "93", "tcp://127.0.0.1:93"),
-                      makeTestHost(info_, "94", "tcp://127.0.0.1:94"),
-                      makeTestHost(info_, "95", "tcp://127.0.0.1:95")};
+  host_set_.hosts_ = {makeTestHost(info_, "90", "tcp://127.0.0.1:90", time_system_),
+                      makeTestHost(info_, "91", "tcp://127.0.0.1:91", time_system_),
+                      makeTestHost(info_, "92", "tcp://127.0.0.1:92", time_system_),
+                      makeTestHost(info_, "93", "tcp://127.0.0.1:93", time_system_),
+                      makeTestHost(info_, "94", "tcp://127.0.0.1:94", time_system_),
+                      makeTestHost(info_, "95", "tcp://127.0.0.1:95", time_system_)};
   host_set_.healthy_hosts_ = host_set_.hosts_;
   host_set_.runCallbacks({}, {});
   common_config_ = envoy::config::cluster::v3::Cluster::CommonLbConfig();
@@ -165,9 +166,9 @@ TEST_F(MaglevLoadBalancerTest, BasicWithHostName) {
 // Same ring as the Basic test, but exercise retry host predicate behavior.
 TEST_F(MaglevLoadBalancerTest, BasicWithRetryHostPredicate) {
   host_set_.hosts_ = {
-      makeTestHost(info_, "tcp://127.0.0.1:90"), makeTestHost(info_, "tcp://127.0.0.1:91"),
-      makeTestHost(info_, "tcp://127.0.0.1:92"), makeTestHost(info_, "tcp://127.0.0.1:93"),
-      makeTestHost(info_, "tcp://127.0.0.1:94"), makeTestHost(info_, "tcp://127.0.0.1:95")};
+      makeTestHost(info_, "tcp://127.0.0.1:90", time_system_), makeTestHost(info_, "tcp://127.0.0.1:91", time_system_),
+      makeTestHost(info_, "tcp://127.0.0.1:92", time_system_), makeTestHost(info_, "tcp://127.0.0.1:93", time_system_),
+      makeTestHost(info_, "tcp://127.0.0.1:94", time_system_), makeTestHost(info_, "tcp://127.0.0.1:95", time_system_)};
   host_set_.healthy_hosts_ = host_set_.hosts_;
   host_set_.runCallbacks({}, {});
   init(7);
@@ -210,8 +211,8 @@ TEST_F(MaglevLoadBalancerTest, BasicWithRetryHostPredicate) {
 
 // Weighted sanity test.
 TEST_F(MaglevLoadBalancerTest, Weighted) {
-  host_set_.hosts_ = {makeTestHost(info_, "tcp://127.0.0.1:90", 1),
-                      makeTestHost(info_, "tcp://127.0.0.1:91", 2)};
+  host_set_.hosts_ = {makeTestHost(info_, "tcp://127.0.0.1:90", time_system_, 1),
+                      makeTestHost(info_, "tcp://127.0.0.1:91", time_system_, 2)};
   host_set_.healthy_hosts_ = host_set_.hosts_;
   host_set_.runCallbacks({}, {});
   init(17);
@@ -248,8 +249,8 @@ TEST_F(MaglevLoadBalancerTest, Weighted) {
 // Locality weighted sanity test when localities have the same weights. Host weights for hosts in
 // different localities shouldn't matter.
 TEST_F(MaglevLoadBalancerTest, LocalityWeightedSameLocalityWeights) {
-  host_set_.hosts_ = {makeTestHost(info_, "tcp://127.0.0.1:90", 1),
-                      makeTestHost(info_, "tcp://127.0.0.1:91", 2)};
+  host_set_.hosts_ = {makeTestHost(info_, "tcp://127.0.0.1:90", time_system_, 1),
+                      makeTestHost(info_, "tcp://127.0.0.1:91", time_system_, 2)};
   host_set_.healthy_hosts_ = host_set_.hosts_;
   host_set_.hosts_per_locality_ =
       makeHostsPerLocality({{host_set_.hosts_[0]}, {host_set_.hosts_[1]}});
@@ -291,9 +292,9 @@ TEST_F(MaglevLoadBalancerTest, LocalityWeightedSameLocalityWeights) {
 // Locality weighted sanity test when localities have different weights. Host weights for hosts in
 // different localities shouldn't matter.
 TEST_F(MaglevLoadBalancerTest, LocalityWeightedDifferentLocalityWeights) {
-  host_set_.hosts_ = {makeTestHost(info_, "tcp://127.0.0.1:90", 1),
-                      makeTestHost(info_, "tcp://127.0.0.1:91", 2),
-                      makeTestHost(info_, "tcp://127.0.0.1:92", 3)};
+  host_set_.hosts_ = {makeTestHost(info_, "tcp://127.0.0.1:90", time_system_, 1),
+                      makeTestHost(info_, "tcp://127.0.0.1:91", time_system_, 2),
+                      makeTestHost(info_, "tcp://127.0.0.1:92", time_system_, 3)};
   host_set_.healthy_hosts_ = host_set_.hosts_;
   host_set_.hosts_per_locality_ =
       makeHostsPerLocality({{host_set_.hosts_[0]}, {host_set_.hosts_[2]}, {host_set_.hosts_[1]}});
@@ -334,7 +335,7 @@ TEST_F(MaglevLoadBalancerTest, LocalityWeightedDifferentLocalityWeights) {
 
 // Locality weighted with all localities zero weighted.
 TEST_F(MaglevLoadBalancerTest, LocalityWeightedAllZeroLocalityWeights) {
-  host_set_.hosts_ = {makeTestHost(info_, "tcp://127.0.0.1:90", 1)};
+  host_set_.hosts_ = {makeTestHost(info_, "tcp://127.0.0.1:90", time_system_, 1)};
   host_set_.healthy_hosts_ = host_set_.hosts_;
   host_set_.hosts_per_locality_ = makeHostsPerLocality({{host_set_.hosts_[0]}});
   host_set_.healthy_hosts_per_locality_ = host_set_.hosts_per_locality_;
@@ -350,8 +351,8 @@ TEST_F(MaglevLoadBalancerTest, LocalityWeightedAllZeroLocalityWeights) {
 // Validate that when we are in global panic and have localities, we get sane
 // results (fall back to non-healthy hosts).
 TEST_F(MaglevLoadBalancerTest, LocalityWeightedGlobalPanic) {
-  host_set_.hosts_ = {makeTestHost(info_, "tcp://127.0.0.1:90", 1),
-                      makeTestHost(info_, "tcp://127.0.0.1:91", 2)};
+  host_set_.hosts_ = {makeTestHost(info_, "tcp://127.0.0.1:90", time_system_, 1),
+                      makeTestHost(info_, "tcp://127.0.0.1:91", time_system_, 2)};
   host_set_.healthy_hosts_ = {};
   host_set_.hosts_per_locality_ =
       makeHostsPerLocality({{host_set_.hosts_[0]}, {host_set_.hosts_[1]}});
@@ -396,7 +397,7 @@ TEST_F(MaglevLoadBalancerTest, LocalityWeightedLopsided) {
   host_set_.hosts_.clear();
   HostVector heavy_but_sparse, light_but_dense;
   for (uint32_t i = 0; i < 1024; ++i) {
-    auto host(makeTestHost(info_, fmt::format("tcp://127.0.0.1:{}", i)));
+    auto host(makeTestHost(info_, fmt::format("tcp://127.0.0.1:{}", i), time_system_));
     host_set_.hosts_.push_back(host);
     (i == 0 ? heavy_but_sparse : light_but_dense).push_back(host);
   }

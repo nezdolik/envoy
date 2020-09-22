@@ -121,7 +121,7 @@ public:
       test_client.codec_client_ = new CodecClientForTest(
           CodecClient::Type::HTTP1, std::move(connection), test_client.codec_,
           [this](CodecClient*) -> void { onClientDestroy(); },
-          Upstream::makeTestHost(cluster, "tcp://127.0.0.1:9000"), *test_client.client_dispatcher_);
+          Upstream::makeTestHost(cluster, "tcp://127.0.0.1:9000"), *test_client.client_dispatcher_, *test_client.client_dispatcher_.timeSource());
       if (buffer_limits) {
         EXPECT_CALL(*cluster_, perConnectionBufferLimitBytes())
             .Times(num_clients)
