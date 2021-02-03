@@ -418,7 +418,8 @@ private:
 
   // Scheduler for each valid HostsSource.
   absl::node_hash_map<HostsSource, Scheduler, HostsSourceHash> scheduler_;
-  protected:
+
+protected:
   // Slow start related configs
   const envoy::config::cluster::v3::Cluster::CommonLbConfig::EndpointWarmingPolicy
       endpoint_warming_policy_;
@@ -434,8 +435,8 @@ private:
   // Used exclusively for:
   //    - checking if at least one host is in slow start;
   //    - ordering of hosts by creation date in ascending order.
-  // Not meant to check if given host is in slow start. 
-  // That check could be done inline by comparing host creation date to slow start window 
+  // Not meant to check if given host is in slow start.
+  // That check could be done inline by comparing host creation date to slow start window
   // and by checking if hosts adheres to endpoint warming policy.
   std::shared_ptr<absl::btree_set<HostSharedPtr, orderByCreateDateDesc>> hosts_in_slow_start_;
 };
@@ -466,23 +467,23 @@ private:
     // index.
     peekahead_index_ = 0;
   }
-  double hostWeight(const Host& host) override { 
-          auto host_create_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-          time_source_.monotonicTime() - host.creationTime());
-      if (host_create_duration <= slow_start_window_ && adheresToEndpointWarmingPolicy(host)) {
-        
-        time_bias_ = time_bias_runtime_ != nullptr ? time_bias_runtime_->value() : 1.0;
+  double hostWeight(const Host& host) override {
+    auto host_create_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        time_source_.monotonicTime() - host.creationTime());
+    if (host_create_duration <= slow_start_window_ && adheresToEndpointWarmingPolicy(host)) {
 
-        if (time_bias_ < 0.0) {
-          // ENVOY_LOG(warn, "upstream: invalid time bias supplied (runtime key {}), using 1.0",
-          //           time_bias_runtime_->runtimeKey());
-          time_bias_ = 1.0;
-        }
-        return host.weight()*time_bias_; 
-      } else {
-        return host.weight();  
+      time_bias_ = time_bias_runtime_ != nullptr ? time_bias_runtime_->value() : 1.0;
+
+      if (time_bias_ < 0.0) {
+        // ENVOY_LOG(warn, "upstream: invalid time bias supplied (runtime key {}), using 1.0",
+        //           time_bias_runtime_->runtimeKey());
+        time_bias_ = 1.0;
       }
+      return host.weight() * time_bias_;
+    } else {
+      return host.weight();
     }
+  }
   HostConstSharedPtr unweightedHostPeek(const HostVector& hosts_to_use,
                                         const HostsSource& source) override {
     auto i = rr_indexes_.find(source);
