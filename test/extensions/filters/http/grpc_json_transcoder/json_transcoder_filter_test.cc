@@ -946,6 +946,57 @@ TEST_F(GrpcJsonTranscoderFilterTest, TranscodingUnaryPostWithHttpBody) {
   EXPECT_THAT(request, ProtoEq(expected_request));
 }
 
+TEST_F(GrpcJsonTranscoderFilterTest, TranscodingUnaryPostWithHttpBodyEncodePlusAndSpace) {
+  Http::TestRequestHeaderMapImpl request_headers{
+      {":method", "POST"},
+      {":path", "/postBody?arg=hello%2Bfrom+other%20side"},
+      {"content-type", "text/plain"}};
+
+  EXPECT_CALL(decoder_callbacks_, clearRouteCache());
+
+  EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_.decodeHeaders(request_headers, false));
+  EXPECT_EQ("application/grpc", request_headers.get_("content-type"));
+  EXPECT_EQ("/postBody?arg=hello%2Bfrom+other%20side",
+            request_headers.get_("x-envoy-original-path"));
+  EXPECT_EQ("POST", request_headers.get_("x-envoy-original-method"));
+  EXPECT_EQ("/bookstore.Bookstore/PostBody", request_headers.get_(":path"));
+  EXPECT_EQ("trailers", request_headers.get_("te"));
+
+  Grpc::Decoder decoder;
+  std::vector<Grpc::Frame> frames;
+
+  EXPECT_CALL(decoder_callbacks_, addDecodedData(_, true))
+      .Times(testing::AtLeast(1))
+      .WillRepeatedly(testing::Invoke([&decoder, &frames](Buffer::Instance& data, bool end_stream) {
+        EXPECT_TRUE(end_stream);
+        decoder.decode(data, frames);
+      }));
+
+  Buffer::OwnedImpl buffer;
+  buffer.add("hello");
+  EXPECT_EQ(Http::FilterDataStatus::StopIterationAndBuffer, filter_.decodeData(buffer, false));
+  EXPECT_EQ(buffer.length(), 0);
+  EXPECT_EQ(frames.size(), 0);
+  buffer.add(" ");
+  EXPECT_EQ(Http::FilterDataStatus::StopIterationAndBuffer, filter_.decodeData(buffer, false));
+  EXPECT_EQ(buffer.length(), 0);
+  EXPECT_EQ(frames.size(), 0);
+  buffer.add("world!");
+  EXPECT_EQ(Http::FilterDataStatus::Continue, filter_.decodeData(buffer, true));
+  EXPECT_EQ(buffer.length(), 0);
+  ASSERT_EQ(frames.size(), 1);
+
+  bookstore::EchoBodyRequest expected_request;
+  expected_request.set_arg("hello+from+other side");
+  expected_request.mutable_nested()->mutable_content()->set_content_type("text/plain");
+  expected_request.mutable_nested()->mutable_content()->set_data("hello world!");
+
+  bookstore::EchoBodyRequest request;
+  request.ParseFromString(frames[0].data_->toString());
+
+  EXPECT_THAT(request, ProtoEq(expected_request));
+}
+
 TEST_F(GrpcJsonTranscoderFilterTest, TranscodingUnaryPostWithNestedHttpBody) {
   const std::string path = "/echoNestedBody?nested2.body.data=aGkh";
   Http::TestRequestHeaderMapImpl request_headers{
