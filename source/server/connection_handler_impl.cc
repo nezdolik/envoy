@@ -27,9 +27,9 @@ void emitLogs(Network::ListenerConfig& config, StreamInfo::StreamInfo& stream_in
 }
 } // namespace
 
-ConnectionHandlerImpl::ConnectionHandlerImpl(Event::Dispatcher& dispatcher,
+ConnectionHandlerImpl::ConnectionHandlerImpl(Event::Dispatcher& dispatcher, Server::OverloadManager& overload_manager,
                                              absl::optional<uint32_t> worker_index)
-    : worker_index_(worker_index), dispatcher_(dispatcher),
+    : worker_index_(worker_index), dispatcher_(dispatcher), overload_manager_(overload_manager),
       per_handler_stat_prefix_(dispatcher.name() + "."), disable_listeners_(false) {}
 
 void ConnectionHandlerImpl::incNumConnections() { ++num_handler_connections_; }
@@ -263,7 +263,7 @@ ConnectionHandlerImpl::ActiveTcpListener::ActiveTcpListener(Network::TcpConnecti
     : ActiveTcpListener(
           parent,
           parent.dispatcher().createListener(config.listenSocketFactory().getListenSocket(), *this,
-                                             config.bindToPort(), config.tcpBacklogSize()),
+                                             config.bindToPort(), config.tcpBacklogSize(), parent_.overloadManager()),
           config) {}
 
 ConnectionHandlerImpl::ActiveTcpListener::ActiveTcpListener(Network::TcpConnectionHandler& parent,

@@ -112,9 +112,9 @@ void TcpListenerImpl::setupServerSocket(Event::DispatcherImpl& dispatcher, Socke
 
 TcpListenerImpl::TcpListenerImpl(Event::DispatcherImpl& dispatcher, Random::RandomGenerator& random,
                                  SocketSharedPtr socket, TcpListenerCallbacks& cb,
-                                 bool bind_to_port, uint32_t backlog_size)
+                                 bool bind_to_port, uint32_t backlog_size, Server::OverloadManager& overload_manager)
     : BaseListenerImpl(dispatcher, std::move(socket)), cb_(cb), backlog_size_(backlog_size),
-      random_(random), reject_fraction_(0.0) {
+      random_(random), reject_fraction_(0.0), overload_manager_(overload_manager) {
   if (bind_to_port) {
     setupServerSocket(dispatcher, *socket_);
   }

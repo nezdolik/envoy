@@ -27,6 +27,7 @@
 #include "envoy/stats/stats_macros.h"
 #include "envoy/stream_info/stream_info.h"
 #include "envoy/thread/thread.h"
+#include "server/overload_manager.h"
 
 namespace Envoy {
 namespace Event {
@@ -222,11 +223,12 @@ public:
    * @param cb supplies the callbacks to invoke for listener events.
    * @param bind_to_port controls whether the listener binds to a transport port or not.
    * @param backlog_size controls listener pending connections backlog
+   * @param overload_manager
    * @return Network::ListenerPtr a new listener that is owned by the caller.
    */
   virtual Network::ListenerPtr createListener(Network::SocketSharedPtr&& socket,
                                               Network::TcpListenerCallbacks& cb, bool bind_to_port,
-                                              uint32_t backlog_size) PURE;
+                                              uint32_t backlog_size, Server::OverloadManager& overload_manager) PURE;
 
   /**
    * Creates a logical udp listener on a specific port.

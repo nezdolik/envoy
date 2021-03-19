@@ -80,7 +80,6 @@ InstanceImpl::InstanceImpl(
                          watermark_factory)),
       dispatcher_(api_->allocateDispatcher("main_thread")),
       singleton_manager_(new Singleton::ManagerImpl(api_->threadFactory())),
-      handler_(new ConnectionHandlerImpl(*dispatcher_, absl::nullopt)),
       listener_component_factory_(*this), worker_factory_(thread_local_, *api_, hooks),
       access_log_manager_(options.fileFlushIntervalMsec(), *api_, *dispatcher_, access_log_lock,
                           store),
@@ -431,6 +430,8 @@ void InstanceImpl::initialize(const Options& options,
   overload_manager_ = std::make_unique<OverloadManagerImpl>(
       *dispatcher_, stats_store_, thread_local_, bootstrap_.overload_manager(),
       messageValidationContext().staticValidationVisitor(), *api_, options);
+
+  handler_ = std::make_unique<ConnectionHandlerImpl>(*dispatcher_, *overload_manager_, absl::nullopt);    
 
   heap_shrinker_ =
       std::make_unique<Memory::HeapShrinker>(*dispatcher_, *overload_manager_, stats_store_);

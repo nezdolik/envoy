@@ -23,7 +23,7 @@ Network::DnsResolverSharedPtr ValidationDispatcher::createDnsResolver(
 
 Network::ListenerPtr ValidationDispatcher::createListener(Network::SocketSharedPtr&&,
                                                           Network::TcpListenerCallbacks&, bool,
-                                                          uint32_t) {
+                                                          uint32_t, Server::OverloadManager&) {
   NOT_IMPLEMENTED_GCOVR_EXCL_LINE;
 }
 

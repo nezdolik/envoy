@@ -70,7 +70,7 @@ class ConnectionHandlerImpl : public Network::TcpConnectionHandler,
 public:
   using UdpListenerCallbacksOptRef =
       absl::optional<std::reference_wrapper<Network::UdpListenerCallbacks>>;
-  ConnectionHandlerImpl(Event::Dispatcher& dispatcher, absl::optional<uint32_t> worker_index);
+  ConnectionHandlerImpl(Event::Dispatcher& dispatcher, Server::OverloadManager& overload_manager, absl::optional<uint32_t> worker_index);
 
   // Network::ConnectionHandler
   uint64_t numConnections() const override { return num_handler_connections_; }
@@ -91,6 +91,8 @@ public:
 
   // Network::TcpConnectionHandler
   Event::Dispatcher& dispatcher() override { return dispatcher_; }
+  Server::OverloadManager& overloadManager() override { return overload_manager_; }
+  
   Network::BalancedConnectionHandlerOptRef getBalancedHandlerByTag(uint64_t listener_tag) override;
   Network::BalancedConnectionHandlerOptRef
   getBalancedHandlerByAddress(const Network::Address::Instance& address) override;
@@ -369,6 +371,7 @@ private:
   // This has a value on worker threads, and no value on the main thread.
   const absl::optional<uint32_t> worker_index_;
   Event::Dispatcher& dispatcher_;
+  Server::OverloadManager& overload_manager_;
   const std::string per_handler_stat_prefix_;
   std::list<std::pair<Network::Address::InstanceConstSharedPtr, ActiveListenerDetails>> listeners_;
   std::atomic<uint64_t> num_handler_connections_{};
