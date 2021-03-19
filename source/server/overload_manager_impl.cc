@@ -283,6 +283,9 @@ OverloadManagerImpl::OverloadManagerImpl(Event::Dispatcher& dispatcher, Stats::S
     }
   }
 
+  //*****Emplace new sample monitor here.
+  reactive_resources_.try_emplace(std::string("sample_name"), std::string("sample_name"), std::make_unique<Server::ActiveConnectionsResourceMonitor>(1), *this, stats_scope);
+
   for (const auto& action : config.actions()) {
     const auto& name = action.name();
     const auto symbol = action_symbol_table_.get(name);
@@ -472,6 +475,7 @@ void OverloadManagerImpl::Resource::update(FlushEpochId flush_epoch) {
   if (!pending_update_) {
     pending_update_ = true;
     flush_epoch_ = flush_epoch;
+    //*****todo this is also affected
     monitor_->updateResourceUsage(*this);
     return;
   }
@@ -490,6 +494,32 @@ void OverloadManagerImpl::Resource::onFailure(const EnvoyException& error) {
   ENVOY_LOG(info, "Failed to update resource {}: {}", name_, error.what());
   failed_updates_counter_.inc();
 }
+
+OverloadManagerImpl::ReactiveResource::ReactiveResource(const std::string& name, ReactiveResourceMonitorPtr monitor,
+                                        OverloadManagerImpl& manager, Stats::Scope& stats_scope)
+    : name_(name), monitor_(std::move(monitor)), manager_(manager),
+      pressure_gauge_(
+          makeGauge(stats_scope, name, "pressure", Stats::Gauge::ImportMode::NeverImport)),
+      failed_updates_counter_(makeCounter(stats_scope, name, "failed_updates")),
+      skipped_updates_counter_(makeCounter(stats_scope, name, "skipped_updates")) {}
+
+void OverloadManagerImpl::ReactiveResource::update(uint64_t increment) {
+    monitor_->updateResourceUsage(increment, *this);
+    return;
+
+}
+
+void OverloadManagerImpl::ReactiveResource::onSuccess(const ResourceUsage& usage) {
+  //manager_.updateResourcePressure(name_, usage.resource_pressure_, flush_epoch_);
+  pressure_gauge_.set(usage.resource_pressure_ * 100); // convert to percent
+}
+
+void OverloadManagerImpl::ReactiveResource::onFailure(const EnvoyException& error) {
+  ENVOY_LOG(info, "Failed to update resource {}: {}", name_, error.what());
+  failed_updates_counter_.inc();
+}
+
+
 
 } // namespace Server
 } // namespace Envoy
