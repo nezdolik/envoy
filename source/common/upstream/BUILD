@@ -45,6 +45,21 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
+    name = "eds_subscription_factory_lib",
+    srcs = ["eds_subscription_factory.cc"],
+    hdrs = ["eds_subscription_factory.h"],
+    deps = [
+        "//envoy/config:subscription_interface",
+        "//envoy/event:dispatcher_interface",
+        "//envoy/local_info:local_info_interface",
+        "//source/common/config:grpc_subscription_lib",
+        "//source/common/config:grpc_mux_lib",
+        "//source/common/config:subscription_factory_lib",
+        "//source/common/config:utility_lib",
+    ],
+)
+
+envoy_cc_library(
     name = "cluster_manager_lib",
     srcs = ["cluster_manager_impl.cc"],
     hdrs = ["cluster_manager_impl.h"],
@@ -85,6 +100,7 @@ envoy_cc_library(
         "//source/common/router:shadow_writer_lib",
         "//source/common/shared_pool:shared_pool_lib",
         "//source/common/tcp:conn_pool_lib",
+        "//source/common/upstream:eds_subscription_factory_lib",
         "//source/common/upstream:priority_conn_pool_map_impl_lib",
         "//source/common/upstream:upstream_lib",
         "//source/common/quic:quic_stat_names_lib",
