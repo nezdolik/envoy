@@ -100,7 +100,6 @@ envoy_cc_library(
         "//source/common/router:shadow_writer_lib",
         "//source/common/shared_pool:shared_pool_lib",
         "//source/common/tcp:conn_pool_lib",
-        "//source/common/upstream:eds_subscription_factory_lib",
         "//source/common/upstream:priority_conn_pool_map_impl_lib",
         "//source/common/upstream:upstream_lib",
         "//source/common/quic:quic_stat_names_lib",
@@ -435,6 +434,7 @@ envoy_cc_library(
     hdrs = ["eds.h"],
     deps = [
         ":cluster_factory_lib",
+        ":eds_subscription_factory_lib",
         ":leds_lib",
         ":upstream_includes",
         "//envoy/config:grpc_mux_interface",

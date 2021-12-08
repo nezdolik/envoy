@@ -17,6 +17,7 @@
 
 #include "source/common/config/subscription_base.h"
 #include "source/common/upstream/cluster_factory_impl.h"
+#include "source/common/upstream/eds_subscription_factory.h"
 #include "source/common/upstream/leds.h"
 #include "source/common/upstream/upstream_impl.h"
 
@@ -32,7 +33,8 @@ class EdsClusterImpl
 public:
   EdsClusterImpl(const envoy::config::cluster::v3::Cluster& cluster, Runtime::Loader& runtime,
                  Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
-                 Stats::ScopePtr&& stats_scope, bool added_via_api);
+                 Stats::ScopePtr&& stats_scope, bool added_via_api,
+                 EdsSubscriptionFactory& eds_subscription_factory);
 
   // Upstream::Cluster
   InitializePhase initializePhase() const override { return initialize_phase_; }
@@ -109,13 +111,16 @@ using EdsClusterImplSharedPtr = std::shared_ptr<EdsClusterImpl>;
 
 class EdsClusterFactory : public ClusterFactoryImplBase {
 public:
-  EdsClusterFactory() : ClusterFactoryImplBase("envoy.cluster.eds") {}
+  EdsClusterFactory() : ClusterFactoryImplBase("envoy.cluster.eds"),
+  eds_subscription_factory_(std::make_unique<EdsSubscriptionFactory>()) {}
 
 private:
   std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr> createClusterImpl(
       const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
       Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
       Stats::ScopePtr&& stats_scope) override;
+  std::unique_ptr<EdsSubscriptionFactory> eds_subscription_factory_;
+  
 };
 
 } // namespace Upstream

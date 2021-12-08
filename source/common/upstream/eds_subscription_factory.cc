@@ -3,7 +3,7 @@
 
 namespace Envoy {
 namespace Upstream {
-Config::GrpcMux& EdsSubscriptionFactory::getOrCreateMux(
+Config::GrpcMuxSharedPtr EdsSubscriptionFactory::getOrCreateMux(
     const LocalInfo::LocalInfo& local_info, Grpc::RawAsyncClientPtr async_client,
     Event::Dispatcher& dispatcher, const Protobuf::MethodDescriptor& service_method,
     Random::RandomGenerator& random, const envoy::config::core::v3::ApiConfigSource& config_source,
@@ -12,10 +12,10 @@ Config::GrpcMux& EdsSubscriptionFactory::getOrCreateMux(
   if (muxes_.find(mux_key) == muxes_.end()) {
     muxes_.emplace(std::make_pair(
         mux_key,
-        std::make_unique<Config::GrpcMuxImpl>(local_info, std::move(async_client), dispatcher,
+        std::make_shared<Config::GrpcMuxImpl>(local_info, std::move(async_client), dispatcher,
                                               service_method, random, scope, rate_limit_settings, config_source.set_node_on_first_message_only())));
   }
-  return *(muxes_.at(mux_key));
+  return muxes_.at(mux_key);
 }
 
 Config::SubscriptionPtr
@@ -24,14 +24,13 @@ EdsSubscriptionFactory::subscriptionFromConfigSource(
     Config::OpaqueResourceDecoder& resource_decoder, const Config::SubscriptionOptions& options, 
     const LocalInfo::LocalInfo& local_info, Event::Dispatcher& dispatcher, Upstream::ClusterManager& cm, 
     Random::RandomGenerator& random, Stats::Scope& scope,
-    std::function<Config::SubscriptionPtr*()>,
     const std::string& grpc_method) {
   if (config.config_source_specifier_case() ==
           envoy::config::core::v3::ConfigSource::kApiConfigSource &&
       config.api_config_source().api_type() == envoy::config::core::v3::ApiConfigSource::GRPC) {
     const envoy::config::core::v3::ApiConfigSource& api_config_source = config.api_config_source();
 
-    Config::GrpcMux& mux_to_use = getOrCreateMux(
+    Config::GrpcMuxSharedPtr mux_to_use = getOrCreateMux(
         local_info,
         Config::Utility::factoryForGrpcApiConfigSource(cm.grpcAsyncClientManager(),
                                                        api_config_source, scope, /*skip_cluster_check*/ true)

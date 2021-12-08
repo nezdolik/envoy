@@ -30,11 +30,10 @@ subscriptionFromConfigSource(
       const LocalInfo::LocalInfo& local_info,
       Event::Dispatcher& dispatcher, Upstream::ClusterManager& cm, Random::RandomGenerator& random,
       Stats::Scope& scope,
-      std::function<Config::SubscriptionPtr*()>,
       const std::string& grpc_method);
 
 protected:
-  Config::GrpcMux& getOrCreateMux(const LocalInfo::LocalInfo& local_info,
+  Config::GrpcMuxSharedPtr getOrCreateMux(const LocalInfo::LocalInfo& local_info,
                                   Grpc::RawAsyncClientPtr async_client, Event::Dispatcher& dispatcher,
                                   const Protobuf::MethodDescriptor& service_method,
                                   Random::RandomGenerator& random,
@@ -43,7 +42,7 @@ protected:
                                   const Config::RateLimitSettings& rate_limit_settings);
 
 private:
-  absl::flat_hash_map<uint64_t, Config::GrpcMuxPtr> muxes_;
+  absl::flat_hash_map<uint64_t, Config::GrpcMuxSharedPtr> muxes_;
 };
 } // namespace Upstream
 } // namespace Envoy

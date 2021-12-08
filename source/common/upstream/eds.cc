@@ -16,7 +16,7 @@ namespace Upstream {
 EdsClusterImpl::EdsClusterImpl(
     const envoy::config::cluster::v3::Cluster& cluster, Runtime::Loader& runtime,
     Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
-    Stats::ScopePtr&& stats_scope, bool added_via_api)
+    Stats::ScopePtr&& stats_scope, bool added_via_api, EdsSubscriptionFactory& eds_subscription_factory)
     : BaseDynamicClusterImpl(cluster, runtime, factory_context, std::move(stats_scope),
                              added_via_api, factory_context.mainThreadDispatcher().timeSource()),
       Envoy::Config::SubscriptionBase<envoy::config::endpoint::v3::ClusterLoadAssignment>(
@@ -35,10 +35,10 @@ EdsClusterImpl::EdsClusterImpl(
     initialize_phase_ = InitializePhase::Secondary;
   }
   const auto resource_name = getResourceName();
-  subscription_ =
-      factory_context.clusterManager().subscriptionFactory().subscriptionFromConfigSource(
-          eds_config, Grpc::Common::typeUrl(resource_name), info_->statsScope(), *this,
-          resource_decoder_, {});
+  subscription_ = eds_subscription_factory.subscriptionFromConfigSource(
+      //todo (nezdolik) pass factory context and collapse some of args
+      eds_config, Grpc::Common::typeUrl(resource_name), *this, resource_decoder_, {}, factory_context_.localInfo(), dispatcher, factory_context_.clusterManager(), factory_context.api().randomGenerator(), *stats_scope,
+      "envoy.api.v2.EndpointDiscoveryService.StreamEndpoints");
 }
 
 void EdsClusterImpl::startPreInit() { subscription_->start({cluster_name_}); }
@@ -385,7 +385,7 @@ EdsClusterFactory::createClusterImpl(
 
   return std::make_pair(
       std::make_unique<EdsClusterImpl>(cluster, context.runtime(), socket_factory_context,
-                                       std::move(stats_scope), context.addedViaApi()),
+                                       std::move(stats_scope), context.addedViaApi(), eds_subscription_factory_),
       nullptr);
 }
 
