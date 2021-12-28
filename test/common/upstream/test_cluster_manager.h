@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <iostream>
 
 #include "envoy/common/random_generator.h"
 #include "envoy/config/bootstrap/v3/bootstrap.pb.h"
@@ -67,6 +68,7 @@ public:
             [&](const envoy::config::cluster::v3::Cluster& cluster, ClusterManager& cm,
                 Outlier::EventLoggerSharedPtr outlier_event_logger,
                 bool added_via_api) -> std::pair<ClusterSharedPtr, ThreadAwareLoadBalancer*> {
+              std::cerr << "**** TestClusterManagerFactory clusterFromProto_ 6666" << std::endl;
               auto result = ClusterFactoryImplBase::create(
                   cluster, cm, stats_, tls_, dns_resolver_, ssl_context_manager_, runtime_,
                   dispatcher_, log_manager_, local_info_, admin_, singleton_manager_,
@@ -179,7 +181,7 @@ public:
                          Router::Context& router_context)
       : ClusterManagerImpl(bootstrap, factory, stats, tls, runtime, local_info, log_manager,
                            main_thread_dispatcher, admin, validation_context, api, http_context,
-                           grpc_context, router_context) {}
+                           grpc_context, router_context){}
 
   std::map<std::string, std::reference_wrapper<Cluster>> activeClusters() {
     std::map<std::string, std::reference_wrapper<Cluster>> clusters;

@@ -14,7 +14,10 @@ def envoy_copts(repository, test = False):
         "-Wformat",
         "-Wformat-security",
         "-Wvla",
-        "-Wno-deprecated-declarations",
+	"-Wno-unused-parameter",
+	"-Wno-unused-function",
+	"-Wno-unused-variable",
+	"-Wno-deprecated-declarations",
         "-Wreturn-type",
     ]
 

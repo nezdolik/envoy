@@ -9,6 +9,7 @@
 #include "source/common/config/subscription_factory_impl.h"
 #include "source/common/config/utility.h"
 #include "source/common/protobuf/protobuf.h"
+#include "source/server/transport_socket_config_impl.h"
 
 /**
  * EdsSubscriptionFactory is used for instantiation of EDS subscriptions so as to minimize the
@@ -23,12 +24,13 @@ namespace Envoy {
 namespace Upstream {
 class EdsSubscriptionFactory {
 public:
+
+virtual ~EdsSubscriptionFactory() = default;
+
 Config::SubscriptionPtr
 subscriptionFromConfigSource(
       const envoy::config::core::v3::ConfigSource& config, absl::string_view type_url, Config::SubscriptionCallbacks& callbacks,
-    Config::OpaqueResourceDecoder& resource_decoder, const Config::SubscriptionOptions& options,
-      const LocalInfo::LocalInfo& local_info,
-      Event::Dispatcher& dispatcher, Upstream::ClusterManager& cm, Random::RandomGenerator& random,
+      Config::OpaqueResourceDecoder& resource_decoder, const Config::SubscriptionOptions& options, Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
       Stats::Scope& scope,
       const std::string& grpc_method);
 

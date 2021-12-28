@@ -56,6 +56,7 @@ envoy_cc_library(
         "//source/common/config:grpc_mux_lib",
         "//source/common/config:subscription_factory_lib",
         "//source/common/config:utility_lib",
+        "//source/server:transport_socket_config_lib",
     ],
 )
 

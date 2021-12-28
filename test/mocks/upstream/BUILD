@@ -80,6 +80,7 @@ envoy_cc_mock(
         ":cluster_real_priority_set_mocks",
         ":cluster_update_callbacks_handle_mocks",
         ":cluster_update_callbacks_mocks",
+        ":eds_subscription_factory_mocks",
         ":health_check_event_logger_mocks",
         ":health_checker_mocks",
         ":host_set_mocks",
@@ -261,6 +262,15 @@ envoy_cc_mock(
         "//test/mocks/tcp:tcp_mocks",
         "//test/mocks/upstream:cluster_manager_factory_mocks",
         "//test/mocks/upstream:thread_local_cluster_mocks",
+    ],
+)
+
+envoy_cc_mock(
+    name = "eds_subscription_factory_mocks",
+    hdrs = ["eds_subscription_factory.h"],
+    deps = [
+        "//envoy/upstream:health_checker_interface",
+        "@envoy_api//envoy/data/core/v3:pkg_cc_proto",
     ],
 )
 

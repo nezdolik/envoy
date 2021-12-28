@@ -4,7 +4,7 @@
 #include "envoy/event/dispatcher.h"
 #include "envoy/extensions/clusters/aggregate/v3/cluster.pb.h"
 #include "envoy/extensions/clusters/aggregate/v3/cluster.pb.validate.h"
-
+#include <iostream>
 #include "source/common/common/assert.h"
 
 namespace Envoy {
@@ -213,6 +213,8 @@ ClusterFactory::createClusterWithConfig(
     Upstream::ClusterFactoryContext& context,
     Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
     Stats::ScopePtr&& stats_scope) {
+  std::cerr << "**** createClusterWithConfig 555" << std::endl;
+
   auto new_cluster =
       std::make_shared<Cluster>(cluster, proto_config, context.clusterManager(), context.runtime(),
                                 context.api().randomGenerator(), socket_factory_context,

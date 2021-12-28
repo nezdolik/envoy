@@ -27,6 +27,7 @@
 #include "test/mocks/server/options.h"
 #include "test/mocks/ssl/mocks.h"
 #include "test/mocks/upstream/cluster_manager.h"
+#include "test/mocks/upstream/eds_subscription_factory.h"
 #include "test/test_common/test_runtime.h"
 #include "test/test_common/utility.h"
 
@@ -88,7 +89,7 @@ public:
         admin_, ssl_context_manager_, *scope, cm_, local_info_, dispatcher_, stats_,
         singleton_manager_, tls_, validation_visitor_, *api_, options_);
     cluster_ = std::make_shared<EdsClusterImpl>(eds_cluster_, runtime_, factory_context,
-                                                std::move(scope), false);
+                                                std::move(scope), false, eds_subscription_factory_);
     EXPECT_EQ(initialize_phase, cluster_->initializePhase());
     eds_callbacks_ = cm_.subscription_factory_.callbacks_;
     subscription_ = std::make_unique<Config::GrpcSubscriptionImpl>(
@@ -179,6 +180,7 @@ public:
   NiceMock<Grpc::MockAsyncStream> async_stream_;
   Config::GrpcMuxSharedPtr grpc_mux_;
   Config::GrpcSubscriptionImplPtr subscription_;
+  NiceMock<MockEdsSubscriptionFactory> eds_subscription_factory_;
 };
 
 } // namespace Upstream

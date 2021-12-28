@@ -401,6 +401,7 @@ ClusterManagerImpl::ClusterManagerImpl(
     if (cluster.type() == envoy::config::cluster::v3::Cluster::EDS &&
         cluster.eds_cluster_config().eds_config().config_source_specifier_case() !=
             envoy::config::core::v3::ConfigSource::ConfigSourceSpecifierCase::kPath) {
+      std::cerr << "***** ClusterManagerImpl init static eds clusters " << std::endl;
       loadCluster(cluster, MessageUtil::hash(cluster), "", false, active_clusters_);
     }
   }

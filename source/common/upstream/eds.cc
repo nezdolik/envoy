@@ -10,6 +10,8 @@
 #include "source/common/config/api_version.h"
 #include "source/common/config/decoded_resource_impl.h"
 
+#include <iostream>
+
 namespace Envoy {
 namespace Upstream {
 
@@ -25,6 +27,7 @@ EdsClusterImpl::EdsClusterImpl(
       cluster_name_(cluster.eds_cluster_config().service_name().empty()
                         ? cluster.name()
                         : cluster.eds_cluster_config().service_name()) {
+  std::cerr << "***EdsClusterImpl::EdsClusterImpl 8888" << std::endl;
   Event::Dispatcher& dispatcher = factory_context.mainThreadDispatcher();
   assignment_timeout_ = dispatcher.createTimer([this]() -> void { onAssignmentTimeout(); });
   const auto& eds_config = cluster.eds_cluster_config().eds_config();
@@ -35,9 +38,9 @@ EdsClusterImpl::EdsClusterImpl(
     initialize_phase_ = InitializePhase::Secondary;
   }
   const auto resource_name = getResourceName();
+
   subscription_ = eds_subscription_factory.subscriptionFromConfigSource(
-      //todo (nezdolik) pass factory context and collapse some of args
-      eds_config, Grpc::Common::typeUrl(resource_name), *this, resource_decoder_, {}, factory_context_.localInfo(), dispatcher, factory_context_.clusterManager(), factory_context.api().randomGenerator(), *stats_scope,
+      eds_config, Grpc::Common::typeUrl(resource_name), *this, resource_decoder_, {}, factory_context_, info_->statsScope(),
       "envoy.api.v2.EndpointDiscoveryService.StreamEndpoints");
 }
 
@@ -382,10 +385,10 @@ EdsClusterFactory::createClusterImpl(
   if (!cluster.has_eds_cluster_config()) {
     throw EnvoyException("cannot create an EDS cluster without an EDS config");
   }
-
+  std::cerr << "***EdsClusterFactory::createClusterImpl 11111" << std::endl;
   return std::make_pair(
       std::make_unique<EdsClusterImpl>(cluster, context.runtime(), socket_factory_context,
-                                       std::move(stats_scope), context.addedViaApi(), eds_subscription_factory_),
+                                       std::move(stats_scope), context.addedViaApi(), *eds_subscription_factory_),
       nullptr);
 }
 

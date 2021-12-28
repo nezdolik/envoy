@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <iostream>
 #include <functional>
 #include <list>
 #include <memory>
@@ -175,6 +176,7 @@ private:
       const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
       Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
       Stats::ScopePtr&& stats_scope) override {
+    std::cerr << "**** createClusterImpl 444" << std::endl;
     ProtobufTypes::MessagePtr config = createEmptyConfigProto();
     Config::Utility::translateOpaqueConfig(cluster.cluster_type().typed_config(),
                                            socket_factory_context.messageValidationVisitor(),

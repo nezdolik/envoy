@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <memory>
+#include <iostream>
 
 #include "envoy/common/random_generator.h"
 #include "envoy/config/grpc_mux.h"
@@ -41,6 +42,14 @@ public:
         control_plane_stats_(Utility::generateControlPlaneStats(scope)), random_(random),
         time_source_(dispatcher.timeSource()),
         rate_limiting_enabled_(rate_limit_settings.enabled_) {
+        std::cerr << "***GrpcStream::GrpcStream 1111111" << std::endl;
+    // Memory leak here.
+    /*
+test/mocks/event/mocks.cc:44: ERROR: this mock object (used in test ClusterManagerImplTest.PrimaryClusters) should be deleted but never is. Its address is @0x161d7e8b2000.
+ERROR: 1 leaked mock object found at program exit. Expectations on a mock object are verified when the object is destructed. Leaking a mock means that its expectations 
+aren't verified, which is usually a test bug. If you really intend to leak a mock, you can suppress this error using testing::Mock::AllowLeak(mock_object), 
+or you may use a fake or stub instead of a mock.
+    */
     retry_timer_ = dispatcher.createTimer([this]() -> void { establishNewStream(); });
     if (rate_limiting_enabled_) {
       // Default Bucket contains 100 tokens maximum and refills at 10 tokens/sec.
