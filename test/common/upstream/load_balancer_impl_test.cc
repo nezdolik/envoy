@@ -1779,6 +1779,39 @@ TEST_P(RoundRobinLoadBalancerTest, SlowStartWaitForPassingHC) {
   EXPECT_EQ(hostSet().healthy_hosts_[1], lb_->chooseHost(nullptr));
 }
 
+TEST_P(RoundRobinLoadBalancerTest, NoSlowStartPassingHcAfterWindowExpiration) {
+  round_robin_lb_config_.mutable_slow_start_config()->mutable_slow_start_window()->set_seconds(10);
+  simTime().advanceTimeWait(std::chrono::seconds(1));
+  init(true);
+  simTime().advanceTimeWait(std::chrono::seconds(1));
+  auto host1 = makeTestHost(info_, "tcp://127.0.0.1:80", simTime());
+  host1->healthFlagSet(Host::HealthFlag::FAILED_ACTIVE_HC);
+  host_set_.hosts_ = {host1};
+  HostVector empty;
+  HostVector hosts_added;
+  hosts_added.push_back(host1);
+  hostSet().runCallbacks(hosts_added, empty);
+  auto latest_host_added_time_ms =
+      EdfLoadBalancerBasePeer::latestHostAddedTime(static_cast<EdfLoadBalancerBase&>(*lb_));
+  // As there are no hosts in slow start mode, `latest_host_added_time_ms` has been initialized to current timestamp upon lb creation.
+  EXPECT_EQ(std::chrono::milliseconds(1000), latest_host_added_time_ms);
+  simTime().advanceTimeWait(std::chrono::seconds(7));
+  hostSet().runCallbacks({}, {});
+  auto latest_host_added_time_ms =
+      EdfLoadBalancerBasePeer::latestHostAddedTime(static_cast<EdfLoadBalancerBase&>(*lb_));
+  // No hosts in slow start.
+  EXPECT_EQ(std::chrono::milliseconds(1000), latest_host_added_time_ms);
+  host1->healthFlagClear(Host::HealthFlag::FAILED_ACTIVE_HC);
+  hostSet().healthy_hosts_ = {host1};
+  simTime().advanceTimeWait(std::chrono::seconds(2));
+  hostSet().runCallbacks({}, {});
+    auto latest_host_added_time_ms =
+      EdfLoadBalancerBasePeer::latestHostAddedTime(static_cast<EdfLoadBalancerBase&>(*lb_));
+  // Even though host1 is now healthy, it did not enter slow start mode,
+  // as its creation duration (11s) is greater than slow start window (10s).
+  EXPECT_EQ(std::chrono::milliseconds(1000), latest_host_added_time_ms);
+}
+
 TEST_P(RoundRobinLoadBalancerTest, SlowStartWithRuntimeAggression) {
   round_robin_lb_config_.mutable_slow_start_config()->mutable_slow_start_window()->set_seconds(10);
   round_robin_lb_config_.mutable_slow_start_config()->mutable_aggression()->set_runtime_key(
@@ -2482,6 +2515,41 @@ TEST_P(LeastRequestLoadBalancerTest, SlowStartWaitForPassingHC) {
   EXPECT_EQ(hostSet().healthy_hosts_[0], lb_2.chooseHost(nullptr));
   EXPECT_EQ(hostSet().healthy_hosts_[1], lb_2.chooseHost(nullptr));
   EXPECT_EQ(hostSet().healthy_hosts_[0], lb_2.chooseHost(nullptr));
+}
+
+TEST_P(LeastRequestLoadBalancerTest, NoSlowStartPassingHcAfterWindowExpiration) {
+  envoy::config::cluster::v3::Cluster::LeastRequestLbConfig lr_lb_config;
+  lr_lb_config.mutable_slow_start_config()->mutable_slow_start_window()->set_seconds(10);
+  simTime().advanceTimeWait(std::chrono::seconds(1));
+  LeastRequestLoadBalancer lb_2{priority_set_, nullptr,        stats_,       runtime_,
+                              random_,       common_config_, lr_lb_config, simTime()};
+  simTime().advanceTimeWait(std::chrono::seconds(1));
+  auto host1 = makeTestHost(info_, "tcp://127.0.0.1:80", simTime());
+  host1->healthFlagSet(Host::HealthFlag::FAILED_ACTIVE_HC);
+  host_set_.hosts_ = {host1};
+  HostVector empty;
+  HostVector hosts_added;
+  hosts_added.push_back(host1);
+  hostSet().runCallbacks(hosts_added, empty);
+  auto latest_host_added_time_ms =
+      EdfLoadBalancerBasePeer::latestHostAddedTime(static_cast<EdfLoadBalancerBase&>(*lb_));
+  // As there are no hosts in slow start mode, `latest_host_added_time_ms` has been initialized to current timestamp upon lb creation.
+  EXPECT_EQ(std::chrono::milliseconds(1000), latest_host_added_time_ms);
+  simTime().advanceTimeWait(std::chrono::seconds(7));
+  hostSet().runCallbacks({}, {});
+  auto latest_host_added_time_ms =
+      EdfLoadBalancerBasePeer::latestHostAddedTime(static_cast<EdfLoadBalancerBase&>(*lb_));
+  // No hosts in slow start.
+  EXPECT_EQ(std::chrono::milliseconds(1000), latest_host_added_time_ms);
+  host1->healthFlagClear(Host::HealthFlag::FAILED_ACTIVE_HC);
+  hostSet().healthy_hosts_ = {host1};
+  simTime().advanceTimeWait(std::chrono::seconds(2));
+  hostSet().runCallbacks({}, {});
+    auto latest_host_added_time_ms =
+      EdfLoadBalancerBasePeer::latestHostAddedTime(static_cast<EdfLoadBalancerBase&>(*lb_));
+  // Even though host1 is now healthy, it did not enter slow start mode,
+  // as its creation duration (11s) is greater than slow start window (10s).
+  EXPECT_EQ(std::chrono::milliseconds(1000), latest_host_added_time_ms);
 }
 
 INSTANTIATE_TEST_SUITE_P(PrimaryOrFailover, LeastRequestLoadBalancerTest,
