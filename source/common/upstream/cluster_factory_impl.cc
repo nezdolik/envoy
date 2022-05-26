@@ -11,7 +11,6 @@
 #include "source/common/upstream/health_checker_impl.h"
 #include "source/server/transport_socket_config_impl.h"
 
-#include <iostream>
 
 namespace Envoy {
 namespace Upstream {
@@ -110,7 +109,6 @@ ClusterFactoryImplBase::selectDnsResolver(const envoy::config::cluster::v3::Clus
 std::pair<ClusterSharedPtr, ThreadAwareLoadBalancerPtr>
 ClusterFactoryImplBase::create(const envoy::config::cluster::v3::Cluster& cluster,
                                ClusterFactoryContext& context) {
-  std::cerr << "**** ClusterFactoryImplBase create 3333" << std::endl;
   auto stats_scope = generateStatsScope(cluster, context.stats());
   std::unique_ptr<Server::Configuration::TransportSocketFactoryContextImpl>
       transport_factory_context =
@@ -123,8 +121,6 @@ ClusterFactoryImplBase::create(const envoy::config::cluster::v3::Cluster& cluste
   std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr> new_cluster_pair =
       createClusterImpl(cluster, context, *transport_factory_context, std::move(stats_scope));
   
-  std::cerr << "**** ClusterFactoryImplBase create 7777" << std::endl;
-
   if (!cluster.health_checks().empty()) {
     // TODO(htuch): Need to support multiple health checks in v2.
     if (cluster.health_checks().size() != 1) {

@@ -4,6 +4,7 @@
 #include "envoy/config/subscription.h"
 #include "envoy/stats/scope.h"
 
+#include "source/common/common/assert.h"
 #include "source/common/config/grpc_mux_impl.h"
 #include "source/common/config/grpc_subscription_impl.h"
 #include "source/common/config/subscription_factory_impl.h"
@@ -22,21 +23,31 @@
 
 namespace Envoy {
 namespace Upstream {
-class EdsSubscriptionFactory {
+class EdsSubscriptionFactory: public Config::SubscriptionFactory {
 public:
 
 virtual ~EdsSubscriptionFactory() = default;
 
+  EdsSubscriptionFactory(const LocalInfo::LocalInfo& local_info, Event::Dispatcher& dispatcher, 
+  Upstream::ClusterManager& cm, Api::Api& api);
+
+// Config::SubscriptionFactory
+Config::SubscriptionPtr subscriptionFromConfigSource(const envoy::config::core::v3::ConfigSource& config,
+                                              absl::string_view type_url, Stats::Scope& scope,
+                                              Config::SubscriptionCallbacks& callbacks,
+                                              Config::OpaqueResourceDecoder& resource_decoder,
+                                              const Config::SubscriptionOptions& options) override;
+// Config::SubscriptionFactory
 Config::SubscriptionPtr
-subscriptionFromConfigSource(
-      const envoy::config::core::v3::ConfigSource& config, absl::string_view type_url, Config::SubscriptionCallbacks& callbacks,
-      Config::OpaqueResourceDecoder& resource_decoder, const Config::SubscriptionOptions& options, Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
-      Stats::Scope& scope,
-      const std::string& grpc_method);
+collectionSubscriptionFromUrl(const xds::core::v3::ResourceLocator& collection_locator,
+                              const envoy::config::core::v3::ConfigSource& config,
+                              absl::string_view resource_type, Stats::Scope& scope,
+                              Config::SubscriptionCallbacks& callbacks,
+                              Config::OpaqueResourceDecoder& resource_decoder) override;
 
 protected:
-  Config::GrpcMuxSharedPtr getOrCreateMux(const LocalInfo::LocalInfo& local_info,
-                                  Grpc::RawAsyncClientPtr async_client, Event::Dispatcher& dispatcher,
+  Config::GrpcMuxSharedPtr getOrCreateMux(
+                                  Grpc::RawAsyncClientPtr async_client,
                                   const Protobuf::MethodDescriptor& service_method,
                                   Random::RandomGenerator& random,
                                   const envoy::config::core::v3::ApiConfigSource& config_source,
@@ -45,6 +56,10 @@ protected:
 
 private:
   absl::flat_hash_map<uint64_t, Config::GrpcMuxSharedPtr> muxes_;
+  const LocalInfo::LocalInfo& local_info_;
+  Event::Dispatcher& dispatcher_;
+  Upstream::ClusterManager& cm_;
+  Api::Api& api_;
 };
 } // namespace Upstream
 } // namespace Envoy

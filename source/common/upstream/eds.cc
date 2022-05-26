@@ -40,8 +40,7 @@ EdsClusterImpl::EdsClusterImpl(
   const auto resource_name = getResourceName();
 
   subscription_ = eds_subscription_factory.subscriptionFromConfigSource(
-      eds_config, Grpc::Common::typeUrl(resource_name), *this, resource_decoder_, {}, factory_context_, info_->statsScope(),
-      "envoy.api.v2.EndpointDiscoveryService.StreamEndpoints");
+      eds_config, Grpc::Common::typeUrl(resource_name), info_->statsScope(), *this, resource_decoder_, {});
 }
 
 void EdsClusterImpl::startPreInit() { subscription_->start({cluster_name_}); }
