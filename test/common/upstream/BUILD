@@ -175,6 +175,19 @@ envoy_benchmark_test(
 )
 
 envoy_cc_test(
+    name = "eds_subscription_factory_test",
+    srcs = ["eds_subscription_factory_test.cc"],
+    deps = [
+        "//source/common/upstream:eds_subscription_factory_lib",
+        "//test/mocks/config:config_mocks",
+        "//test/mocks/local_info:local_info_mocks",
+        "//test/mocks/runtime:runtime_mocks",
+        "//test/mocks/stats:stats_mocks",
+        "//test/mocks/upstream:upstream_mocks",
+    ],
+)
+
+envoy_cc_test(
     name = "leds_test",
     srcs = ["leds_test.cc"],
     deps = [

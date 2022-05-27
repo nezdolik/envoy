@@ -384,6 +384,10 @@ EdsClusterFactory::createClusterImpl(
   if (!cluster.has_eds_cluster_config()) {
     throw EnvoyException("cannot create an EDS cluster without an EDS config");
   }
+  if (!eds_subscription_factory_) {
+    eds_subscription_factory_ = std::make_unique<EdsSubscriptionFactory>(socket_factory_context.localInfo(), context.mainThreadDispatcher(), 
+    context.clusterManager(), context.api());
+  }
   std::cerr << "***EdsClusterFactory::createClusterImpl 11111" << std::endl;
   return std::make_pair(
       std::make_unique<EdsClusterImpl>(cluster, context.runtime(), socket_factory_context,

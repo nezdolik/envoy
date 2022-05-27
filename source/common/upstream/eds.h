@@ -111,8 +111,7 @@ using EdsClusterImplSharedPtr = std::shared_ptr<EdsClusterImpl>;
 
 class EdsClusterFactory : public ClusterFactoryImplBase {
 public:
-  EdsClusterFactory() : ClusterFactoryImplBase("envoy.cluster.eds"),
-  eds_subscription_factory_(std::make_unique<EdsSubscriptionFactory>()) {}
+  EdsClusterFactory() : ClusterFactoryImplBase("envoy.cluster.eds") {}
 
 private:
   std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr> createClusterImpl(
@@ -120,7 +119,6 @@ private:
       Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
       Stats::ScopePtr&& stats_scope) override;
   std::unique_ptr<EdsSubscriptionFactory> eds_subscription_factory_;
-  
 };
 
 } // namespace Upstream

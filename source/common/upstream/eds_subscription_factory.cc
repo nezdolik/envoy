@@ -8,6 +8,12 @@ namespace Envoy {
 namespace Upstream {
 
 
+EdsSubscriptionFactory::EdsSubscriptionFactory(
+    const LocalInfo::LocalInfo& local_info, Event::Dispatcher& dispatcher,
+    Upstream::ClusterManager& cm, Api::Api& api)
+    : local_info_(local_info), dispatcher_(dispatcher), cm_(cm),
+      api_(api) {}
+
 Config::SubscriptionPtr
 EdsSubscriptionFactory::subscriptionFromConfigSource(const envoy::config::core::v3::ConfigSource& config,
                                               absl::string_view type_url, Stats::Scope& scope,

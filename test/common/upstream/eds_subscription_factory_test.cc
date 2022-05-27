@@ -3,7 +3,7 @@
 #include "envoy/common/exception.h"
 #include "envoy/stats/scope.h"
 
-#include "common/upstream/eds_subscription_factory.h"
+#include "source/common/upstream/eds_subscription_factory.h"
 
 #include "test/mocks/config/mocks.h"
 #include "test/mocks/local_info/mocks.h"
@@ -23,15 +23,18 @@ namespace Upstream {
 
 class EdsSubscriptionFactoryForTesting : public EdsSubscriptionFactory {
 public:
-  Config::GrpcMux& testGetOrCreateMux(const LocalInfo::LocalInfo& local_info,
-                                  Grpc::RawAsyncClientPtr async_client, Event::Dispatcher& dispatcher,
+  EdsSubscriptionFactoryForTesting(const LocalInfo::LocalInfo& local_info, Event::Dispatcher& dispatcher, 
+  Upstream::ClusterManager& cm, Api::Api& api): EdsSubscriptionFactory(local_info, dispatcher, cm, api){};
+
+  Config::GrpcMux& testGetOrCreateMux(
+                                  Grpc::RawAsyncClientPtr async_client,
                                   const Protobuf::MethodDescriptor& service_method,
                                   Random::RandomGenerator& random,
                                   const envoy::config::core::v3::ApiConfigSource& config_source,
                                   Stats::Scope& scope,
                                   const Config::RateLimitSettings& rate_limit_settings) {
 
-    return EdsSubscriptionFactory::getOrCreateMux(local_info, std::move(async_client), dispatcher,
+    return EdsSubscriptionFactory::getOrCreateMux(std::move(async_client),
                                                   service_method, random, config_source, scope,
                                                   rate_limit_settings);
   }
@@ -41,33 +44,39 @@ class EdsSubscriptionFactoryTest : public ::testing::Test {
 public:
   EdsSubscriptionFactoryTest()
       : method_descriptor_(*Protobuf::DescriptorPool::generated_pool()->FindMethodByName(
-            "envoy.api.v2.EndpointDiscoveryService.StreamEndpoints")) {}
+            "envoy.api.v3.EndpointDiscoveryService.StreamEndpoints")) {}
 
   Upstream::MockClusterManager cm_;
   Event::MockDispatcher dispatcher_;
-  Runtime::MockRandomGenerator random_;
+  NiceMock<Random::MockRandomGenerator> random_;
   Config::MockSubscriptionCallbacks<envoy::api::v2::ClusterLoadAssignment> callbacks_;
   Stats::MockIsolatedStatsStore stats_store_;
+  NiceMock<Api::MockApi> api_;
   NiceMock<LocalInfo::MockLocalInfo> local_info_;
   Grpc::MockAsyncClient* async_client_;
   const Protobuf::MethodDescriptor& method_descriptor_;
   Config::RateLimitSettings rate_limit_settings_;
 };
 
-// Verify the same mux instance is returned when the same config sources are used
+// Verify the same mux instance is returned when the same management servers are used.
 TEST_F(EdsSubscriptionFactoryTest, ShouldReturnSameMux) {
-  envoy::api::v2::core::ConfigSource config;
-  config.mutable_api_config_source()->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name(
-      "first_cluster");
-  EdsSubscriptionFactoryForTesting factory;
+  envoy::api::v3::core::ConfigSource config1;
+  config1.mutable_api_config_source()->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name(
+      "primary_eds_cluster");
+  envoy::api::v3::core::ConfigSource config2;
+  config2.mutable_api_config_source()->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name(
+    "primary_eds_cluster");
+  config2.mutable_api_config_source()->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name(
+  "fallback_eds_cluster");
+  auto factory = EdsSubscriptionFactoryForTesting(local_info_, dispatcher_, cm_, api_);
 
   EXPECT_CALL(dispatcher_, createTimer_(_));
   Config::GrpcMux& first_mux = factory.testGetOrCreateMux(
-      local_info_, std::make_unique<Grpc::MockAsyncClient>(), dispatcher_, method_descriptor_,
-      random_, config.api_config_source(), stats_store_, rate_limit_settings_);
+      std::make_unique<Grpc::MockAsyncClient>(), method_descriptor_,
+      random_, config1.api_config_source(), stats_store_, rate_limit_settings_);
   Config::GrpcMux& second_mux = factory.testGetOrCreateMux(
-      local_info_, std::make_unique<Grpc::MockAsyncClient>(), dispatcher_, method_descriptor_,
-      random_, config.api_config_source(), stats_store_, rate_limit_settings_);
+      std::make_unique<Grpc::MockAsyncClient>(), method_descriptor_,
+      random_, config2.api_config_source(), stats_store_, rate_limit_settings_);
   EXPECT_EQ(&first_mux, &second_mux);
 }
 
