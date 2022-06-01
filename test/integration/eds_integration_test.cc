@@ -433,5 +433,34 @@ TEST_P(EdsIntegrationTest, StatsReadyFilter) {
   cleanupUpstreamAndDownstream();
 }
 
+struct TestParams {
+  Network::Address::IpVersion ip_version;
+  Grpc::ClientType eds_grpc_type;
+};
+
+std::string edsTestParamsToString(const ::testing::TestParamInfo<TestParams>& p) {
+  return fmt::format(
+      "{}_{}", p.param.ip_version == Network::Address::IpVersion::v4 ? "IPv4" : "IPv6",
+      p.param.eds_grpc_type == Grpc::ClientType::GoogleGrpc ? "GoogleGrpc" : "EnvoyGrpc");
+}
+
+class EdsOverGrpcIntegrationTest: public Grpc::BaseGrpcClientIntegrationParamTest,
+                                      public HttpIntegrationTest,
+                                      public testing::TestWithParam<TestParams> {
+    EdsOverGrpcIntegrationTest()
+      : HttpIntegrationTest(Http::CodecType::HTTP1, GetParam().ip_version) {}
+
+  EdsOverGrpcIntegrationTest(Http::CodecType downstream_protocol,
+                                Network::Address::IpVersion version, const std::string& config)
+      : HttpIntegrationTest(downstream_protocol, version, config) {}
+
+  Network::Address::IpVersion ipVersion() const override { return GetParam().ip_version; }
+  Grpc::ClientType clientType() const override { return GetParam().eds_grpc_type; }
+
+  void TearDown() override {
+    cleanUpXdsConnection();
+}
+};
+
 } // namespace
 } // namespace Envoy

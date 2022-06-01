@@ -179,6 +179,7 @@ envoy_cc_test(
     srcs = ["eds_subscription_factory_test.cc"],
     deps = [
         "//source/common/upstream:eds_subscription_factory_lib",
+        "//test/mocks/api:api_mocks",
         "//test/mocks/config:config_mocks",
         "//test/mocks/local_info:local_info_mocks",
         "//test/mocks/runtime:runtime_mocks",

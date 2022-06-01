@@ -7,6 +7,7 @@
 
 #include "envoy/api/api.h"
 #include "envoy/config/cluster/v3/cluster.pb.h"
+#include "envoy/config/subscription_factory.h"
 #include "envoy/http/codec.h"
 #include "envoy/upstream/cluster_manager.h"
 
@@ -43,7 +44,7 @@ public:
   std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr> createClusterImpl(
       const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
       Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
-      Stats::ScopePtr&& stats_scope) override {
+      Stats::ScopePtr&& stats_scope, Config::SubscriptionFactory* subscription_factory) override {
     return std::make_pair(std::make_shared<CustomStaticCluster>(
                               cluster, context.runtime(), socket_factory_context,
                               std::move(stats_scope), context.addedViaApi(), 1, "127.0.0.1", 80),
