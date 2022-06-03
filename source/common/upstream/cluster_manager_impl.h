@@ -36,6 +36,7 @@
 #include "source/common/upstream/load_stats_reporter.h"
 #include "source/common/upstream/priority_conn_pool_map.h"
 #include "source/common/upstream/upstream_impl.h"
+#include "source/common/upstream/eds_subscription_factory.h"
 #include "source/server/factory_context_base_impl.h"
 
 namespace Envoy {
@@ -296,6 +297,8 @@ public:
   ClusterManagerFactory& clusterManagerFactory() override { return factory_; }
 
   Config::SubscriptionFactory& subscriptionFactory() override { return subscription_factory_; }
+
+  Config::SubscriptionFactory& edsSubscriptionFactory() override { return eds_subscription_factory_; }
 
   void
   initializeSecondaryClusters(const envoy::config::bootstrap::v3::Bootstrap& bootstrap) override;
@@ -654,6 +657,7 @@ private:
   ClusterTimeoutBudgetStatNames cluster_timeout_budget_stat_names_;
 
   Config::SubscriptionFactoryImpl subscription_factory_;
+  EdsSubscriptionFactory eds_subscription_factory_;
   ClusterSet primary_clusters_;
 };
 

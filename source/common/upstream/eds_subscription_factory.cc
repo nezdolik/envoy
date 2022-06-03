@@ -39,7 +39,7 @@ EdsSubscriptionFactory::subscriptionFromConfigSource(const envoy::config::core::
    return std::make_unique<Config::GrpcSubscriptionImpl>(mux_to_use, callbacks, resource_decoder, stats, 
    type_url, dispatcher_, Config::Utility::configSourceInitialFetchTimeout(config), /*is_aggregated*/ false, options);
   }
-
+   std::cerr << "***EdsSubscriptionFactory::subscriptionFromConfigSource 55555" << std::endl;
   return cm_.subscriptionFactory().subscriptionFromConfigSource(config, type_url, scope, callbacks, 
   resource_decoder, options);
 }

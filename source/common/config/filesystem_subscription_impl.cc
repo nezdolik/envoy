@@ -3,11 +3,14 @@
 #include "envoy/service/discovery/v3/discovery.pb.h"
 
 #include "source/common/common/macros.h"
+#include "source/common/common/thread.h"
 #include "source/common/common/utility.h"
 #include "source/common/config/decoded_resource_impl.h"
 #include "source/common/config/utility.h"
 #include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
+
+#include <iostream>
 
 namespace Envoy {
 namespace Config {
@@ -16,9 +19,16 @@ FilesystemSubscriptionImpl::FilesystemSubscriptionImpl(
     Event::Dispatcher& dispatcher, absl::string_view path, SubscriptionCallbacks& callbacks,
     OpaqueResourceDecoder& resource_decoder, SubscriptionStats stats,
     ProtobufMessage::ValidationVisitor& validation_visitor, Api::Api& api)
-    : path_(path), watcher_(dispatcher.createFilesystemWatcher()), callbacks_(callbacks),
+    : path_(path), callbacks_(callbacks),
       resource_decoder_(resource_decoder), stats_(stats), api_(api),
       validation_visitor_(validation_visitor) {
+
+  if (Thread::MainThread::isMainThread()){
+    std::cerr<< "!!!Main thread" << std::endl;
+  } else {
+    std::cerr<< "!!!NOT Main thread" << std::endl;  
+  }
+  watcher_ = dispatcher.createFilesystemWatcher();
   watcher_->addWatch(path_, Filesystem::Watcher::Events::MovedTo, [this](uint32_t) {
     if (started_) {
       refresh();

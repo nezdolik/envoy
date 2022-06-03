@@ -15,6 +15,8 @@
 #include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
 
+#include <iostream>
+
 namespace Envoy {
 namespace Config {
 
@@ -31,7 +33,11 @@ SubscriptionPtr SubscriptionFactoryImpl::subscriptionFromConfigSource(
     const SubscriptionOptions& options) {
   Config::Utility::checkLocalInfo(type_url, local_info_);
   SubscriptionStats stats = Utility::generateStats(scope);
-
+    if (dispatcher_.isThreadSafe()){
+    std::cerr<< "$$$$isThreadSafe" << std::endl;
+  } else {
+    std::cerr<< "$$$$$NOT isThreadSafe" << std::endl;  
+  }
   switch (config.config_source_specifier_case()) {
   case envoy::config::core::v3::ConfigSource::ConfigSourceSpecifierCase::kPath: {
     Utility::checkFilesystemSubscriptionBackingPath(config.path(), api_);

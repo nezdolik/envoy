@@ -98,6 +98,7 @@ public:
     if (codec_client_type_ == envoy::type::v3::HTTP2) {
       setUpstreamProtocol(Http::CodecType::HTTP2);
     }
+    
     config_helper_.addConfigModifier([this](envoy::config::bootstrap::v3::Bootstrap& bootstrap) {
       // Switch predefined cluster_0 to CDS filesystem sourcing.
       bootstrap.mutable_dynamic_resources()->mutable_cds_config()->set_resource_api_version(
@@ -444,6 +445,17 @@ std::string edsTestParamsToString(const ::testing::TestParamInfo<TestParams>& p)
       p.param.eds_grpc_type == Grpc::ClientType::GoogleGrpc ? "GoogleGrpc" : "EnvoyGrpc");
 }
 
+  struct FakeUpstreamInfo {
+    FakeHttpConnectionPtr connection_;
+    FakeUpstream* upstream_{};
+    absl::flat_hash_map<std::string, FakeStreamPtr> stream_by_resource_name_;
+
+    static constexpr char default_stream_name[] = "default";
+
+    // Used for cases where only a single stream is needed.
+    FakeStreamPtr& defaultStream() { return stream_by_resource_name_[default_stream_name]; }
+  };
+
 class EdsOverGrpcIntegrationTest: public Grpc::BaseGrpcClientIntegrationParamTest,
                                       public HttpIntegrationTest,
                                       public testing::TestWithParam<TestParams> {
@@ -460,7 +472,157 @@ class EdsOverGrpcIntegrationTest: public Grpc::BaseGrpcClientIntegrationParamTes
   void TearDown() override {
     cleanUpXdsConnection();
 }
-};
+
+    // We need to supply the endpoints via EDS to provide health status. Use a
+  // filesystem delivery to simplify test mechanics.
+  void setEndpoints(uint32_t total_endpoints, uint32_t healthy_endpoints,
+                    uint32_t degraded_endpoints, bool remaining_unhealthy = true,
+                    absl::optional<uint32_t> overprovisioning_factor = absl::nullopt,
+                    bool await_update = true) {
+    ASSERT(total_endpoints >= healthy_endpoints + degraded_endpoints);
+    envoy::config::endpoint::v3::ClusterLoadAssignment cluster_load_assignment;
+    cluster_load_assignment.set_cluster_name("cluster_0");
+    if (overprovisioning_factor.has_value()) {
+      cluster_load_assignment.mutable_policy()->mutable_overprovisioning_factor()->set_value(
+          overprovisioning_factor.value());
+    }
+    auto* locality_lb_endpoints = cluster_load_assignment.add_endpoints();
+
+    for (uint32_t i = 0; i < total_endpoints; ++i) {
+      auto* endpoint = locality_lb_endpoints->add_lb_endpoints();
+      setUpstreamAddress(i, *endpoint);
+      // First N endpoints are degraded, next M are healthy and the remaining endpoints are
+      // unhealthy or unknown depending on remaining_unhealthy.
+      if (i < degraded_endpoints) {
+        endpoint->set_health_status(envoy::config::core::v3::DEGRADED);
+      } else if (i >= healthy_endpoints + degraded_endpoints) {
+        endpoint->set_health_status(remaining_unhealthy ? envoy::config::core::v3::UNHEALTHY
+                                                        : envoy::config::core::v3::UNKNOWN);
+      }
+    }
+  }
+
+    // Initialize a gRPC stream of an upstream server.
+  void initializeStream(FakeUpstreamInfo& upstream_info,
+                        const std::string& resource_name = FakeUpstreamInfo::default_stream_name) {
+    if (!upstream_info.connection_) {
+      auto result =
+          upstream_info.upstream_->waitForHttpConnection(*dispatcher_, upstream_info.connection_);
+      RELEASE_ASSERT(result, result.message());
+    }
+    if (!upstream_info.stream_by_resource_name_.try_emplace(resource_name, nullptr).second) {
+      RELEASE_ASSERT(false,
+                     fmt::format("stream with resource name '{}' already exists!", resource_name));
+    }
+
+    auto result = upstream_info.connection_->waitForNewStream(
+        *dispatcher_, upstream_info.stream_by_resource_name_[resource_name]);
+    RELEASE_ASSERT(result, result.message());
+    upstream_info.stream_by_resource_name_[resource_name]->startGrpcStream();
+  }
+
+  void initializeTest(
+      bool http_active_hc,
+      std::function<void(envoy::config::cluster::v3::Cluster& cluster)> cluster_modifier, uint32_t localities_num = 1) {
+    setUpstreamCount(4);
+    if (codec_client_type_ == envoy::type::v3::HTTP2) {
+      setUpstreamProtocol(Http::CodecType::HTTP2);
+    }
+    config_helper_.addConfigModifier([this, http_active_hc](
+                                        envoy::config::bootstrap::v3::Bootstrap& bootstrap) {
+    // Add a static EDS cluster.
+    auto* eds_cluster = bootstrap.mutable_static_resources()->add_clusters();
+    eds_cluster->MergeFrom(bootstrap.static_resources().clusters()[0]);
+    eds_cluster->set_name("eds_cluster");
+    eds_cluster->mutable_load_assignment()->set_cluster_name("eds_cluster");
+    ConfigHelper::setHttp2(*eds_cluster);
+
+    // Remove the static cluster (cluster_0) and set up CDS.
+    bootstrap.mutable_dynamic_resources()->mutable_cds_config()->set_resource_api_version(
+        envoy::config::core::v3::ApiVersion::V3);
+    bootstrap.mutable_dynamic_resources()->mutable_cds_config()->set_path(cds_helper_.cds_path());
+    bootstrap.mutable_static_resources()->mutable_clusters()->erase(
+        bootstrap.mutable_static_resources()->mutable_clusters()->begin());
+
+    // Set the default static cluster to use EDS.
+    auto& cluster_0 = cluster_;
+    cluster_0.set_name("cluster_0");
+    cluster_0.set_type(envoy::config::cluster::v3::Cluster::EDS);
+    cluster_0.mutable_connect_timeout()->CopyFrom(Protobuf::util::TimeUtil::SecondsToDuration(5));
+    auto* eds_cluster_config = cluster_0.mutable_eds_cluster_config();
+    eds_cluster_config->mutable_eds_config()->set_resource_api_version(
+        envoy::config::core::v3::ApiVersion::V3);
+    auto* api_config_source =
+        eds_cluster_config->mutable_eds_config()->mutable_api_config_source();
+    api_config_source->set_api_type(envoy::config::core::v3::ApiConfigSource::DELTA_GRPC);
+    api_config_source->set_transport_api_version(envoy::config::core::v3::ApiVersion::V3);
+    auto* grpc_service = api_config_source->add_grpc_services();
+    setGrpcService(*grpc_service, "eds_cluster", eds_upstream_info_.upstream_->localAddress());
+    if (http_active_hc) {
+      auto* health_check = cluster_0.add_health_checks();
+      health_check->mutable_timeout()->set_seconds(30);
+      // TODO(mattklein123): Consider using simulated time here.
+      health_check->mutable_interval()->CopyFrom(
+          Protobuf::util::TimeUtil::MillisecondsToDuration(100));
+      health_check->mutable_no_traffic_interval()->CopyFrom(
+          Protobuf::util::TimeUtil::MillisecondsToDuration(100));
+      health_check->mutable_unhealthy_threshold()->set_value(1);
+      health_check->mutable_healthy_threshold()->set_value(1);
+      health_check->mutable_http_health_check()->set_path("/healthcheck");
+      health_check->mutable_http_health_check()->set_codec_client_type(codec_client_type_);
+    }
+    // Set the cluster using CDS.
+    cds_helper_.setCds({cluster_});
+  });
+  // Set validate_clusters to false to allow us to reference a CDS cluster.
+  config_helper_.addConfigModifier(
+      [](envoy::extensions::filters::network::http_connection_manager::v3::HttpConnectionManager&
+              hcm) { hcm.mutable_route_config()->mutable_validate_clusters()->set_value(false); });
+
+  defer_listener_finalization_ = true;
+  initialize();
+
+  EXPECT_EQ(1, test_server_->gauge("cluster_manager.warming_clusters")->value());
+  EXPECT_EQ(2, test_server_->gauge("cluster_manager.active_clusters")->value());
+  // Create the EDS connection and stream.
+  initializeStream(eds_upstream_info_);
+  // Add the assignment and localities.
+  cluster_load_assignment_.set_cluster_name("cluster_0");
+  for (uint32_t locality_idx = 0; locality_idx < localities_num; ++locality_idx) {
+    // Setup per locality LEDS config over gRPC.
+    auto* locality_lb_endpoints = cluster_load_assignment_.add_endpoints();
+    locality_lb_endpoints->set_priority(locality_idx);
+    const std::string locality_endpoints_prefix = fmt::format(
+        "xdstp://test/envoy.config.endpoint.v3.LbEndpoint/cluster0/locality{}/", locality_idx);
+    localities_prefixes_.push_back(locality_endpoints_prefix);
+  }
+
+      EXPECT_EQ(1, test_server_->gauge("cluster_manager.warming_clusters")->value());
+    EXPECT_EQ(2, test_server_->gauge("cluster_manager.active_clusters")->value());
+
+    // Do the initial compareDiscoveryRequest / sendDiscoveryResponse for cluster_'s localities
+    // (ClusterLoadAssignment).
+    EXPECT_TRUE(compareDeltaDiscoveryRequest(Config::TypeUrl::get().ClusterLoadAssignment,
+                                             {"cluster_0"}, {},
+                                             eds_upstream_info_.defaultStream()));
+    sendDeltaDiscoveryResponse<envoy::config::endpoint::v3::ClusterLoadAssignment>(
+        Config::TypeUrl::get().ClusterLoadAssignment, {cluster_load_assignment_}, {}, "2",
+        eds_upstream_info_.defaultStream());
+
+    // Receive EDS ack.
+    EXPECT_TRUE(compareDeltaDiscoveryRequest(Config::TypeUrl::get().ClusterLoadAssignment, {}, {},
+                                             eds_upstream_info_.defaultStream()));
+  }
+
+  void initializeTest(bool http_active_hc) { initializeTest(http_active_hc, nullptr); }
+
+  envoy::type::v3::CodecClientType codec_client_type_{};
+  CdsHelper cds_helper_;
+  envoy::config::cluster::v3::Cluster cluster_;
+  envoy::config::endpoint::v3::ClusterLoadAssignment cluster_load_assignment_;
+  FakeUpstreamInfo eds_upstream_info_;
+  std::vector<std::string> localities_prefixes_;
+ };
 
 } // namespace
 } // namespace Envoy

@@ -18,7 +18,7 @@ namespace Upstream {
 EdsClusterImpl::EdsClusterImpl(
     const envoy::config::cluster::v3::Cluster& cluster, Runtime::Loader& runtime,
     Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
-    Stats::ScopePtr&& stats_scope, bool added_via_api, EdsSubscriptionFactory& eds_subscription_factory)
+    Stats::ScopePtr&& stats_scope, bool added_via_api)
     : BaseDynamicClusterImpl(cluster, runtime, factory_context, std::move(stats_scope),
                              added_via_api, factory_context.mainThreadDispatcher().timeSource()),
       Envoy::Config::SubscriptionBase<envoy::config::endpoint::v3::ClusterLoadAssignment>(
@@ -39,7 +39,12 @@ EdsClusterImpl::EdsClusterImpl(
   }
   const auto resource_name = getResourceName();
 
-  subscription_ = eds_subscription_factory.subscriptionFromConfigSource(
+  // subscription_ =
+  //   factory_context.clusterManager().subscriptionFactory().subscriptionFromConfigSource(
+  //       eds_config, Grpc::Common::typeUrl(resource_name), info_->statsScope(), *this,
+  //       resource_decoder_, {});
+
+  subscription_ = factory_context.clusterManager().edsSubscriptionFactory().subscriptionFromConfigSource(
       eds_config, Grpc::Common::typeUrl(resource_name), info_->statsScope(), *this, resource_decoder_, {});
 }
 
@@ -384,14 +389,15 @@ EdsClusterFactory::createClusterImpl(
   if (!cluster.has_eds_cluster_config()) {
     throw EnvoyException("cannot create an EDS cluster without an EDS config");
   }
-  if (!eds_subscription_factory_) {
-    eds_subscription_factory_ = std::make_unique<EdsSubscriptionFactory>(socket_factory_context.localInfo(), context.mainThreadDispatcher(), 
-    context.clusterManager(), context.api());
+  if (Thread::MainThread::isMainThread()){
+    std::cerr<< "^^^Main thread" << std::endl;
+  } else {
+    std::cerr<< "^^^NOT Main thread" << std::endl;  
   }
   std::cerr << "***EdsClusterFactory::createClusterImpl 11111" << std::endl;
   return std::make_pair(
       std::make_unique<EdsClusterImpl>(cluster, context.runtime(), socket_factory_context,
-                                       std::move(stats_scope), context.addedViaApi(), *eds_subscription_factory_),
+                                       std::move(stats_scope), context.addedViaApi()),
       nullptr);
 }
 

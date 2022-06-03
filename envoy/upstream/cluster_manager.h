@@ -36,6 +36,8 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_map.h"
 
+
+
 namespace Envoy {
 namespace Upstream {
 
@@ -295,6 +297,8 @@ public:
    * @return Config::SubscriptionFactory& the subscription factory.
    */
   virtual Config::SubscriptionFactory& subscriptionFactory() PURE;
+
+  virtual Config::SubscriptionFactory& edsSubscriptionFactory() PURE;
 
   /**
    * Returns a struct with all the Stats::StatName objects needed by
