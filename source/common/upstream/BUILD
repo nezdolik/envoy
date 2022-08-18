@@ -64,9 +64,9 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
-    name = "eds_subscription_factory_lib",
-    srcs = ["eds_subscription_factory.cc"],
-    hdrs = ["eds_subscription_factory.h"],
+    name = "multiplexed_subscription_factory_lib",
+    srcs = ["multiplexed_subscription_factory.cc"],
+    hdrs = ["multiplexed_subscription_factory.h"],
     deps = [
         "//envoy/config:subscription_interface",
         "//envoy/event:dispatcher_interface",
@@ -471,7 +471,7 @@ envoy_cc_library(
     hdrs = ["eds.h"],
     deps = [
         ":cluster_factory_lib",
-        ":eds_subscription_factory_lib",
+        ":multiplexed_subscription_factory_lib",
         ":leds_lib",
         ":upstream_includes",
         "//envoy/config:grpc_mux_interface",

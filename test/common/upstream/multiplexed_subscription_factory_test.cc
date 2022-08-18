@@ -1,9 +1,10 @@
 #include <memory>
+#include <iostream>
 
 #include "envoy/common/exception.h"
 #include "envoy/stats/scope.h"
 
-#include "source/common/upstream/eds_subscription_factory.h"
+#include "source/common/upstream/multiplexed_subscription_factory.h"
 
 #include "test/mocks/api/mocks.h"
 #include "test/mocks/config/custom_config_validators.h"
@@ -21,38 +22,32 @@
 using ::testing::_;
 using ::testing::Invoke;
 using ::testing::Return;
+using ::testing::ReturnRef;
 
 namespace Envoy {
 namespace Upstream {
 
-class EdsSubscriptionFactoryForTesting : public EdsSubscriptionFactory {
+class MultiplexedSubscriptionFactoryForTesting : public MultiplexedSubscriptionFactory {
 public:
-  EdsSubscriptionFactoryForTesting(const LocalInfo::LocalInfo& local_info,
+  MultiplexedSubscriptionFactoryForTesting(const LocalInfo::LocalInfo& local_info,
                                    Event::Dispatcher& dispatcher, Upstream::ClusterManager& cm,
                                    Api::Api& api,
                                    ProtobufMessage::ValidationVisitor& validation_visitor,
                                    const Server::Instance& server)
-      : EdsSubscriptionFactory(local_info, dispatcher, cm, api, validation_visitor, server){};
+      : MultiplexedSubscriptionFactory(local_info, dispatcher, cm, validation_visitor, api, server){};
 
   Config::GrpcMuxSharedPtr
-  testGetOrCreateMux(Grpc::RawAsyncClientPtr async_client,
-                     const Protobuf::MethodDescriptor& service_method,
-                     Random::RandomGenerator& random,
-                     const envoy::config::core::v3::ApiConfigSource& config_source,
-                     Stats::Scope& scope, const Config::RateLimitSettings& rate_limit_settings,
-                     Config::CustomConfigValidatorsPtr& custom_config_validators) {
-
-    return EdsSubscriptionFactory::getOrCreateMux(std::move(async_client), service_method, random,
-                                                  config_source, scope, rate_limit_settings,
-                                                  custom_config_validators);
+  testGetOrCreateMux(const envoy::config::core::v3::ApiConfigSource& api_config_source,
+                 absl::string_view type_url, Stats::Scope& scope,
+                 Config::CustomConfigValidatorsPtr& custom_config_validators) {
+    return MultiplexedSubscriptionFactory::getOrCreateMux(api_config_source, type_url, scope, custom_config_validators);
   }
 };
 
-class EdsSubscriptionFactoryTest : public ::testing::Test {
+class MultiplexedSubscriptionFactoryTest : public ::testing::TestWithParam<envoy::config::core::v3::ApiConfigSource::ApiType> {
 public:
-  EdsSubscriptionFactoryTest()
-      : method_descriptor_(*Protobuf::DescriptorPool::generated_pool()->FindMethodByName(
-            "envoy.api.v3.EndpointDiscoveryService.StreamEndpoints")) {}
+  MultiplexedSubscriptionFactoryTest()
+      : type_url_("type.googleapis.com/envoy.config.endpoint.v3.ClusterLoadAssignment") {};
 
   NiceMock<Upstream::MockClusterManager> cm_;
   Event::MockDispatcher dispatcher_;
@@ -62,105 +57,116 @@ public:
   NiceMock<Api::MockApi> api_;
   NiceMock<LocalInfo::MockLocalInfo> local_info_;
   Grpc::MockAsyncClient* async_client_;
-  const Protobuf::MethodDescriptor& method_descriptor_;
+  const std::string type_url_;
   Config::RateLimitSettings rate_limit_settings_;
   NiceMock<Server::MockInstance> server_;
   NiceMock<ProtobufMessage::MockValidationVisitor> validation_visitor_;
   NiceMock<Config::MockOpaqueResourceDecoder> resource_decoder_;
 };
 
+INSTANTIATE_TEST_SUITE_P(ApiConfigSource, MultiplexedSubscriptionFactoryTest,
+                         ::testing::Values(envoy::config::core::v3::ApiConfigSource::GRPC,
+                         envoy::config::core::v3::ApiConfigSource::DELTA_GRPC));
+
 // Verify the same mux instance is returned for same config source.
-TEST_F(EdsSubscriptionFactoryTest, ShouldReturnSameMuxForSameConfigSource) {
+TEST_P(MultiplexedSubscriptionFactoryTest, ShouldReturnSameMuxForSameConfigSource) {
   envoy::config::core::v3::ConfigSource config1;
-  config1.mutable_api_config_source()->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name(
+  auto config_source = config1.mutable_api_config_source();
+  config_source->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name(
       "primary_eds_cluster");
-  auto factory = EdsSubscriptionFactoryForTesting(local_info_, dispatcher_, cm_, api_,
+  config_source->set_api_type(GetParam());
+  auto factory = MultiplexedSubscriptionFactoryForTesting(local_info_, dispatcher_, cm_, api_,
                                                   validation_visitor_, server_);
 
   EXPECT_CALL(dispatcher_, createTimer_(_));
   Config::CustomConfigValidatorsPtr config_validators =
       std::make_unique<NiceMock<Config::MockCustomConfigValidators>>();
   auto first_mux = factory.testGetOrCreateMux(
-      std::make_unique<Grpc::MockAsyncClient>(), method_descriptor_, random_,
-      config1.api_config_source(), stats_store_, rate_limit_settings_, config_validators);
+      config1.api_config_source(), type_url_, stats_store_, config_validators);
   config_validators = std::make_unique<NiceMock<Config::MockCustomConfigValidators>>();
   auto second_mux = factory.testGetOrCreateMux(
-      std::make_unique<Grpc::MockAsyncClient>(), method_descriptor_, random_,
-      config1.api_config_source(), stats_store_, rate_limit_settings_, config_validators);
+    config1.api_config_source(), type_url_, stats_store_, config_validators);
   EXPECT_EQ(first_mux.get(), second_mux.get());
 }
 
 // Verify the same mux instance is returned when the same management servers are used.
-TEST_F(EdsSubscriptionFactoryTest, ShouldReturnSameMuxForSameGrpcService) {
+TEST_P(MultiplexedSubscriptionFactoryTest, ShouldReturnSameMuxForSameGrpcService) {
   envoy::config::core::v3::ConfigSource config1;
-  config1.mutable_api_config_source()->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name(
+    auto config_source = config1.mutable_api_config_source();
+  config_source->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name(
       "primary_eds_cluster");
+  config_source->set_api_type(GetParam());
   envoy::config::core::v3::ConfigSource config2;
-  config2.mutable_api_config_source()->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name(
+  config_source = config2.mutable_api_config_source();
+  config_source->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name(
       "primary_eds_cluster");
-  config2.mutable_api_config_source()->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name(
+  config_source->set_api_type(GetParam());
+  config_source = config2.mutable_api_config_source();
+  config_source->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name(
       "fallback_eds_cluster");
-  auto factory = EdsSubscriptionFactoryForTesting(local_info_, dispatcher_, cm_, api_,
+  auto factory = MultiplexedSubscriptionFactoryForTesting(local_info_, dispatcher_, cm_, api_,
                                                   validation_visitor_, server_);
 
   EXPECT_CALL(dispatcher_, createTimer_(_));
   Config::CustomConfigValidatorsPtr config_validators =
       std::make_unique<NiceMock<Config::MockCustomConfigValidators>>();
   auto first_mux = factory.testGetOrCreateMux(
-      std::make_unique<Grpc::MockAsyncClient>(), method_descriptor_, random_,
-      config1.api_config_source(), stats_store_, rate_limit_settings_, config_validators);
+config1.api_config_source(), type_url_, stats_store_, config_validators);
   config_validators = std::make_unique<NiceMock<Config::MockCustomConfigValidators>>();
   auto second_mux = factory.testGetOrCreateMux(
-      std::make_unique<Grpc::MockAsyncClient>(), method_descriptor_, random_,
-      config2.api_config_source(), stats_store_, rate_limit_settings_, config_validators);
+      config1.api_config_source(), type_url_, stats_store_, config_validators);
   EXPECT_EQ(first_mux.get(), second_mux.get());
 }
 
 // Verify that a new mux instance is created if a different config_source is used.
-TEST_F(EdsSubscriptionFactoryTest, ShouldReturnDifferentMuxes) {
-  auto factory = EdsSubscriptionFactoryForTesting(local_info_, dispatcher_, cm_, api_,
+TEST_P(MultiplexedSubscriptionFactoryTest, ShouldReturnDifferentMuxes) {
+  auto factory = MultiplexedSubscriptionFactoryForTesting(local_info_, dispatcher_, cm_, api_,
                                                   validation_visitor_, server_);
 
   EXPECT_CALL(dispatcher_, createTimer_(_)).Times(2);
   envoy::config::core::v3::ConfigSource first_config;
-  first_config.mutable_api_config_source()
+  auto config_source = first_config.mutable_api_config_source();
+  config_source->set_api_type(GetParam());
+  config_source
       ->add_grpc_services()
       ->mutable_envoy_grpc()
       ->set_cluster_name("first_cluster");
   Config::CustomConfigValidatorsPtr config_validators =
       std::make_unique<NiceMock<Config::MockCustomConfigValidators>>();
   auto first_mux = factory.testGetOrCreateMux(
-      std::make_unique<Grpc::MockAsyncClient>(), method_descriptor_, random_,
-      first_config.api_config_source(), stats_store_, rate_limit_settings_, config_validators);
+    first_config.api_config_source(), type_url_, stats_store_, config_validators);
   envoy::config::core::v3::ConfigSource second_config;
-  second_config.mutable_api_config_source()
+  config_source = second_config.mutable_api_config_source();
+  config_source->set_api_type(GetParam());
+  config_source
       ->add_grpc_services()
       ->mutable_envoy_grpc()
       ->set_cluster_name("second_cluster");
   config_validators = std::make_unique<NiceMock<Config::MockCustomConfigValidators>>();
   auto second_mux = factory.testGetOrCreateMux(
-      std::make_unique<Grpc::MockAsyncClient>(), method_descriptor_, random_,
-      second_config.api_config_source(), stats_store_, rate_limit_settings_, config_validators);
+      second_config.api_config_source(), type_url_, stats_store_, config_validators);
   EXPECT_NE(first_mux.get(), second_mux.get());
 }
 
-// Verify that muxes managed by EdsSubscriptionFactory are used when ApiConfigSource::GRPC api type
+// Verify that muxes managed by MultiplexedSubscriptionFactory are used when ApiConfigSource::GRPC api type
 // is used.
-TEST_F(EdsSubscriptionFactoryTest, ShouldUseGetOrCreateMuxWhenApiConfigSourceIsUsed) {
-  auto factory = EdsSubscriptionFactoryForTesting(local_info_, dispatcher_, cm_, api_,
+TEST_P(MultiplexedSubscriptionFactoryTest, ShouldUseGetOrCreateMuxWhenApiConfigSourceIsUsed) {
+  auto factory = MultiplexedSubscriptionFactoryForTesting(local_info_, dispatcher_, cm_, api_,
                                                   validation_visitor_, server_);
-
   envoy::config::core::v3::ConfigSource config;
-  config.mutable_api_config_source()->set_api_type(envoy::config::core::v3::ApiConfigSource::GRPC);
-  config.mutable_api_config_source()->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name(
+  auto config_source = config.mutable_api_config_source();
+  config_source->set_api_type(GetParam());
+  config_source->set_transport_api_version(envoy::config::core::v3::V3);
+  config_source->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name(
       "first_cluster");
-
+  Upstream::ClusterManager::ClusterSet primary_clusters;
+  primary_clusters.insert("first_cluster");
+  EXPECT_CALL(cm_, primaryClusters()).WillOnce(ReturnRef(primary_clusters));
   NiceMock<Grpc::MockAsyncClientFactory>* async_client_factory{
       new NiceMock<Grpc::MockAsyncClientFactory>()};
   EXPECT_CALL(*async_client_factory, createUncachedRawAsyncClient()).WillOnce(Invoke([] {
     return std::make_unique<NiceMock<Grpc::MockAsyncClient>>();
   }));
-
   NiceMock<Grpc::MockAsyncClientManager> async_client_manager;
   EXPECT_CALL(async_client_manager, factoryForGrpcService(_, _, _))
       .WillOnce(Invoke(
@@ -169,33 +175,15 @@ TEST_F(EdsSubscriptionFactoryTest, ShouldUseGetOrCreateMuxWhenApiConfigSourceIsU
           }));
   EXPECT_CALL(cm_, grpcAsyncClientManager()).WillOnce(ReturnRef(async_client_manager));
   EXPECT_CALL(dispatcher_, createTimer_(_));
-
   auto subscription =
       factory.subscriptionFromConfigSource(config, Config::TypeUrl::get().ClusterLoadAssignment,
                                            stats_store_, callbacks_, resource_decoder_, {});
-
   Config::CustomConfigValidatorsPtr config_validators =
       std::make_unique<NiceMock<Config::MockCustomConfigValidators>>();
   auto expected_mux = factory.testGetOrCreateMux(
-      std::make_unique<Grpc::MockAsyncClient>(), method_descriptor_, random_,
-      config.api_config_source(), stats_store_, rate_limit_settings_, config_validators);
-
+      config.api_config_source(), type_url_, stats_store_, config_validators);
   EXPECT_EQ(expected_mux.get(),
             (dynamic_cast<Config::GrpcSubscriptionImpl&>(*subscription).grpcMux()).get());
-}
-
-// Verify that super-class subscriptionFromConfigSource() is called when a non ApiConfigSource::GRPC
-// api type is used
-TEST_F(EdsSubscriptionFactoryTest, ShouldCallConfigSubscriptionFactory) {
-  auto factory = EdsSubscriptionFactoryForTesting(local_info_, dispatcher_, cm_, api_,
-                                                  validation_visitor_, server_);
-  NiceMock<Envoy::Config::MockSubscriptionFactory> subscription_factory;
-  envoy::config::core::v3::ConfigSource config;
-  config.mutable_ads();
-  EXPECT_CALL(cm_, subscriptionFactory).WillOnce(ReturnRef(subscription_factory));
-  EXPECT_CALL(subscription_factory, subscriptionFromConfigSource);
-  factory.subscriptionFromConfigSource(config, Config::TypeUrl::get().ClusterLoadAssignment,
-                                       stats_store_, callbacks_, resource_decoder_, {});
 }
 
 } // namespace Upstream
