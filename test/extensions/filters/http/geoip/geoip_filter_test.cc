@@ -25,6 +25,15 @@ namespace HttpFilters {
 namespace Geoip {
 namespace {
 
+MATCHER_P2(HasExpectedHeader, expected_header, expected_value, "") {
+  auto request_headers = static_cast<Http::TestRequestHeaderMapImpl>(arg);
+  EXPECT_TRUE(request_headers.has(expected_header));
+  EXPECT_EQ(
+      expected_value,
+      request_headers.get(Http::LowerCaseString(expected_header))[0]->value().getStringView());
+  return true;
+}
+
 class GeoipFilterTest : public testing::Test {
 public:
   GeoipFilterTest()
@@ -70,14 +79,6 @@ public:
     EXPECT_CALL(stats_, counter(absl::StrCat("prefix.geoip.", geo_header, ".hit")));
   }
 
-  void expectHeader(const Http::TestRequestHeaderMapImpl& request_headers,
-                    const std::string& geo_header_name, const std::string& value) {
-    EXPECT_TRUE(request_headers.has(geo_header_name));
-    EXPECT_EQ(
-        value,
-        request_headers.get(Http::LowerCaseString(geo_header_name))[0]->value().getStringView());
-  }
-
   ~GeoipFilterTest() override { filter_->onDestroy(); }
 
   NiceMock<Stats::MockStore> stats_;
@@ -116,7 +117,7 @@ TEST_F(GeoipFilterTest, NoXffSuccessfulLookup) {
   EXPECT_CALL(filter_callbacks_, continueDecoding());
   filter_->onLookupComplete(dummy_city_, "x-geo-city");
   EXPECT_EQ(1, request_headers.size());
-  expectHeader(request_headers, "x-geo-city", "dummy_city");
+  EXPECT_THAT(request_headers, HasExpectedHeader( "x-geo-city", "dummy_city"));
   EXPECT_EQ("1.2.3.4:0", captured_address_->asString());
 }
 
@@ -143,7 +144,7 @@ TEST_F(GeoipFilterTest, UseXffSuccessfulLookup) {
   EXPECT_CALL(filter_callbacks_, continueDecoding());
   filter_->onLookupComplete(dummy_region_, "x-geo-region");
   EXPECT_EQ(2, request_headers.size());
-  expectHeader(request_headers, "x-geo-region", "dummy_region");
+  EXPECT_THAT(request_headers, HasExpectedHeader( "x-geo-region", "dummy_region"));
   EXPECT_EQ("10.0.0.1:0", captured_address_->asString());
 }
 
@@ -179,7 +180,7 @@ TEST_F(GeoipFilterTest, GeoHeadersOverridenForIncomingRequest) {
                               filter_->onLookupComplete(dummy_region_, "x-geo-region");
                             })));
   EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_->decodeHeaders(request_headers, false));
-  expectHeader(request_headers, "x-geo-city", "dummy_city");
+  EXPECT_THAT(request_headers, HasExpectedHeader( "x-geo-city", "dummy_city"));
   EXPECT_EQ(2, request_headers.size());
   EXPECT_EQ("1.2.3.4:0", captured_address_->asString());
 }
@@ -235,7 +236,7 @@ TEST_F(GeoipFilterTest, AllHeadersPropagatedCorrectly) {
   for (auto iter = geo_headers.begin(); iter != geo_headers.end(); ++iter) {
     auto& header = iter->first;
     auto& value = iter->second;
-    expectHeader(request_headers, header, value);
+    EXPECT_THAT(request_headers, HasExpectedHeader( header, value));
   }
   EXPECT_EQ("1.2.3.4:0", captured_address_->asString());
 }
@@ -266,8 +267,7 @@ TEST_F(GeoipFilterTest, GeoHeaderNotAppendedOnEmptyLookup) {
   filter_->onLookupComplete(empty_response_, "x-geo-city");
 
   EXPECT_EQ(1, request_headers.size());
-  EXPECT_EQ("dummy_region",
-            request_headers.get(Http::LowerCaseString("x-geo-region"))[0]->value().getStringView());
+  EXPECT_THAT(request_headers, HasExpectedHeader( "x-geo-region", "dummy_region"));
   EXPECT_EQ("1.2.3.4:0", captured_address_->asString());
 }
 

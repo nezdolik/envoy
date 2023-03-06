@@ -52,6 +52,7 @@ public:
 
 private:
   void incCounter(Stats::StatName name);
+  absl::flat_hash_set<std::string> processGeoHeaders(const absl::flat_hash_set<absl::string_view>& headers);
   absl::optional<std::string> setupForGeolocationHeader(absl::string_view configured_geo_header);
 
   Stats::Scope& scope_;
@@ -62,6 +63,8 @@ private:
   const Stats::StatName unknown_hit_;
   bool use_xff_;
   const uint32_t xff_num_trusted_hops_;
+  const absl::flat_hash_set<std::string> geo_headers_;
+  const absl::flat_hash_set<std::string> geo_anon_headers_;
   absl::optional<std::string> geo_country_header_;
   absl::optional<std::string> geo_city_header_;
   absl::optional<std::string> geo_region_header_;
@@ -93,22 +96,11 @@ public:
   Http::FilterTrailersStatus decodeTrailers(Http::RequestTrailerMap& trailers) override;
   void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) override;
   // LookupCallbacks
-  void onLookupComplete(const absl::optional<std::string>& lookup_result,
-                        const absl::optional<std::string>& geo_header) override;
+  void onLookupComplete(LookupResult&& result) override;
+  // void onLookupComplete(const absl::optional<std::string>& lookup_result,
+  //                       const absl::optional<std::string>& geo_header) override;
 
 private:
-  void lookupGeolocationData(
-      const absl::optional<std::string>& geo_header,
-      const Network::Address::InstanceConstSharedPtr& remote_address,
-      void (Driver::*func)(const Network::Address::InstanceConstSharedPtr& address,
-                           const LookupCallbacks& callbacks,
-                           const absl::optional<std::string>& geo_header) const);
-  void lookupGeolocationAnonData(
-      const absl::optional<std::string>& geo_header,
-      const Network::Address::InstanceConstSharedPtr& remote_address,
-      void (Driver::*func)(const Network::Address::InstanceConstSharedPtr& address,
-                           const LookupCallbacks& callbacks,
-                           const absl::optional<std::string>& geo_header) const);
   bool allLookupsComplete();
   // Allow the unit test to have access to private members.
   friend class GeoipFilterPeer;
@@ -119,6 +111,9 @@ private:
   Envoy::Http::RequestHeaderMap* request_headers_ = nullptr;
   uint32_t num_lookups_to_perform_{0};
 };
+
+using GeoipFilterWeakPtr = std::weak_ptr<GeoipFilter>;
+using GeoipFilterSharedPtr = std::shared_ptr<GeoipFilter>;
 
 } // namespace Geoip
 } // namespace HttpFilters
