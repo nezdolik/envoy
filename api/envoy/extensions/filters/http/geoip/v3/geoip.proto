@@ -85,6 +85,10 @@ message Geoip {
   // Configuration for geolocation headers to add to request.
   GeolocationHeadersToAdd geo_headers_to_add = 2 [(validate.rules).message = {required: true}];
 
-  // Geolocation provider specific configuration.
+  // Geoip driver specific configuration which depends on the driver being instantiated.
+  // See the geoip drivers for examples:
+  //
+  // - :ref:`MaxMindConfig <envoy_api_msg_config.geoip.v3.MaxMindConfig>`
+  // [#extension-category: envoy.geoip_providers]
   config.core.v3.TypedExtensionConfig provider = 3 [(validate.rules).message = {required: true}];
 }

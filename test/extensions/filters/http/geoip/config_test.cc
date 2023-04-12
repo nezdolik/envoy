@@ -95,8 +95,8 @@ MATCHER_P(HasAnonGeoHeadersSize, expected_size, "") {
 TEST(GeoipFilterConfigTest, GeoipFilterDefaultValues) {
   TestScopedRuntime scoped_runtime;
   scoped_runtime.mergeValues({{"envoy.reloadable_features.no_extension_lookup_by_name", "false"}});
-  DummyGeoipProviderFactory dummy_factory;
-  Registry::InjectFactory<GeoipProviderFactory> registered(dummy_factory);
+  DummyProviderFactory dummy_factory;
+  Registry::InjectFactory<ProviderFactory> registered(dummy_factory);
   std::string filter_config_yaml = R"EOF(
     geo_headers_to_add:
       city: "x-geo-city"
@@ -121,8 +121,8 @@ TEST(GeoipFilterConfigTest, GeoipFilterDefaultValues) {
 TEST(GeoipFilterConfigTest, GeoipFilterConfigWithCorrectProto) {
   TestScopedRuntime scoped_runtime;
   scoped_runtime.mergeValues({{"envoy.reloadable_features.no_extension_lookup_by_name", "false"}});
-  DummyGeoipProviderFactory dummy_factory;
-  Registry::InjectFactory<GeoipProviderFactory> registered(dummy_factory);
+  DummyProviderFactory dummy_factory;
+  Registry::InjectFactory<ProviderFactory> registered(dummy_factory);
   std::string filter_config_yaml = R"EOF(
     xff_config:
       xff_num_trusted_hops: 1
@@ -152,8 +152,8 @@ TEST(GeoipFilterConfigTest, GeoipFilterConfigWithCorrectProto) {
 TEST(GeoipFilterConfigTest, GeoipFilterConfigMissingGeoHeaders) {
   TestScopedRuntime scoped_runtime;
   scoped_runtime.mergeValues({{"envoy.reloadable_features.no_extension_lookup_by_name", "false"}});
-  DummyGeoipProviderFactory dummy_factory;
-  Registry::InjectFactory<GeoipProviderFactory> registered(dummy_factory);
+  DummyProviderFactory dummy_factory;
+  Registry::InjectFactory<ProviderFactory> registered(dummy_factory);
   std::string filter_config_yaml = R"EOF(
     xff_config:
       xff_num_trusted_hops: 0
@@ -174,8 +174,8 @@ TEST(GeoipFilterConfigTest, GeoipFilterConfigMissingGeoHeaders) {
 TEST(GeoipFilterConfigTest, GeoipFilterConfigMissingProvider) {
   TestScopedRuntime scoped_runtime;
   scoped_runtime.mergeValues({{"envoy.reloadable_features.no_extension_lookup_by_name", "false"}});
-  DummyGeoipProviderFactory dummy_factory;
-  Registry::InjectFactory<GeoipProviderFactory> registered(dummy_factory);
+  DummyProviderFactory dummy_factory;
+  Registry::InjectFactory<ProviderFactory> registered(dummy_factory);
   std::string filter_config_yaml = R"EOF(
     geo_headers_to_add:
       country: "x-geo-country"
@@ -195,8 +195,8 @@ TEST(GeoipFilterConfigTest, GeoipFilterConfigMissingProvider) {
 TEST(GeoipFilterConfigTest, GeoipFilterConfigUnknownProvider) {
   TestScopedRuntime scoped_runtime;
   scoped_runtime.mergeValues({{"envoy.reloadable_features.no_extension_lookup_by_name", "false"}});
-  DummyGeoipProviderFactory dummy_factory;
-  Registry::InjectFactory<GeoipProviderFactory> registered(dummy_factory);
+  DummyProviderFactory dummy_factory;
+  Registry::InjectFactory<ProviderFactory> registered(dummy_factory);
   std::string filter_config_yaml = R"EOF(
     geo_headers_to_add:
       country: "x-geo-country"

@@ -24,7 +24,7 @@ public:
       const std::string& stats_prefix, Server::Configuration::FactoryContext& context) override;
 
 private:
-  GeoipProviderFactoryContextPtr provider_context_;
+  ProviderFactoryContextPtr provider_context_;
 };
 
 } // namespace Geoip
