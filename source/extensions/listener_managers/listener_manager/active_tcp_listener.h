@@ -2,9 +2,11 @@
 
 #include "envoy/event/dispatcher.h"
 #include "envoy/runtime/runtime.h"
+#include "envoy/server/overload/overload_manager.h"
 #include "envoy/stream_info/stream_info.h"
 
 #include "source/common/common/linked_object.h"
+#include "source/common/network/tcp_listener_impl.h"
 #include "source/extensions/listener_managers/listener_manager/active_stream_listener_base.h"
 #include "source/extensions/listener_managers/listener_manager/active_tcp_socket.h"
 #include "source/server/active_listener_base.h"
@@ -19,6 +21,8 @@ struct RebalancedSocket {
 using RebalancedSocketSharedPtr = std::shared_ptr<RebalancedSocket>;
 } // namespace
 
+using ThreadLocalOverloadStateOptRef = OptRef<ThreadLocalOverloadState>;
+
 /**
  * Wrapper for an active tcp listener owned by this handler.
  */
@@ -29,23 +33,44 @@ public:
   ActiveTcpListener(Network::TcpConnectionHandler& parent, Network::ListenerConfig& config,
                     Runtime::Loader& runtime, Network::SocketSharedPtr&& socket,
                     Network::Address::InstanceConstSharedPtr& listen_address,
-                    Network::ConnectionBalancer& connection_balancer);
+                    Network::ConnectionBalancer& connection_balancer, ThreadLocalOverloadStateOptRef overload_state);
   ActiveTcpListener(Network::TcpConnectionHandler& parent, Network::ListenerPtr&& listener,
                     Network::Address::InstanceConstSharedPtr& listen_address,
                     Network::ListenerConfig& config,
-                    Network::ConnectionBalancer& connection_balancer, Runtime::Loader& runtime);
+                    Network::ConnectionBalancer& connection_balancer, Runtime::Loader& runtime, ThreadLocalOverloadStateOptRef overload_state);
   ~ActiveTcpListener() override;
 
   bool listenerConnectionLimitReached() const {
-    // TODO(tonya11en): Delegate enforcement of per-listener connection limits to overload
-    // manager.
-    return !config_->openConnections().canCreate();
+    if (trackGlobalActiveCxLimitInOverloadManager()) {
+      Runtime::Loader* runtime = Runtime::LoaderSingleton::getExisting();
+      // Check if deprecated runtime flag `overload.global_downstream_max_connections` is configured simultaneously with downstream connections monitor in overload manager.
+      if (runtime != nullptr &&
+            runtime->threadsafeSnapshot()->get(Network::TcpListenerImpl::GlobalMaxCxRuntimeKey)) {
+          ENVOY_LOG_MISC(warn,
+                        "Global downstream connections limits is configured via runtime key {} and in "
+                        "{}. Using overload manager config.",
+                        Network::TcpListenerImpl::GlobalMaxCxRuntimeKey, Server::OverloadProactiveResources::get().GlobalDownstreamMaxConnections);
+      }
+    // Try to allocate resource within overload manager. We do it once here, instead of checking if it is
+    // possible to allocate resource in this method and then actually allocating it later in the code to avoid race conditions.
+    return !(overload_state_->tryAllocateResource(
+        Server::OverloadProactiveResourceName::GlobalDownstreamMaxConnections, 1));
+    } else {
+       // TODO(tonya11en): Delegate enforcement of per-listener connection limits to overload
+       // manager.
+       return !config_->openConnections().canCreate();
+    }
+
   }
 
   void decNumConnections() override {
     ASSERT(num_listener_connections_ > 0);
     --num_listener_connections_;
     config_->openConnections().dec();
+    if (trackGlobalActiveCxLimitInOverloadManager()) {
+      overload_state_->tryDeallocateResource(
+        Server::OverloadProactiveResourceName::GlobalDownstreamMaxConnections, 1)
+    }
   }
 
   // Network::TcpListenerCallbacks
@@ -92,6 +117,11 @@ public:
   // when rebalancing. The accepted socket can't be used to get the listening address, since
   // the accepted socket's remote address can be another address than the listening address.
   Network::Address::InstanceConstSharedPtr listen_address_;
+  private:
+    bool trackGlobalActiveCxLimitInOverloadManager() const {
+      return overload_state_ && overload_state_->isResourceMonitorEnabled(Server::OverloadProactiveResourceName::GlobalDownstreamMaxConnections);
+    }
+    ThreadLocalOverloadStateOptRef overload_state_;
 };
 
 using ActiveTcpListenerOptRef = absl::optional<std::reference_wrapper<ActiveTcpListener>>;

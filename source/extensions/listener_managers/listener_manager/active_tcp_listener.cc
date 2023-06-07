@@ -16,12 +16,13 @@ ActiveTcpListener::ActiveTcpListener(Network::TcpConnectionHandler& parent,
                                      Network::ListenerConfig& config, Runtime::Loader& runtime,
                                      Network::SocketSharedPtr&& socket,
                                      Network::Address::InstanceConstSharedPtr& listen_address,
-                                     Network::ConnectionBalancer& connection_balancer)
+                                     Network::ConnectionBalancer& connection_balancer, ThreadLocalOverloadStateOptRef overload_state)
     : OwnedActiveStreamListenerBase(
           parent, parent.dispatcher(),
           parent.dispatcher().createListener(std::move(socket), *this, runtime, config), config),
       tcp_conn_handler_(parent), connection_balancer_(connection_balancer),
-      listen_address_(listen_address) {
+      listen_address_(listen_address),
+      overload_state_(overload_state) {
   connection_balancer_.registerHandler(*this);
 }
 
@@ -30,10 +31,11 @@ ActiveTcpListener::ActiveTcpListener(Network::TcpConnectionHandler& parent,
                                      Network::Address::InstanceConstSharedPtr& listen_address,
                                      Network::ListenerConfig& config,
                                      Network::ConnectionBalancer& connection_balancer,
-                                     Runtime::Loader&)
+                                     Runtime::Loader&, ThreadLocalOverloadStateOptRef overload_state)
     : OwnedActiveStreamListenerBase(parent, parent.dispatcher(), std::move(listener), config),
       tcp_conn_handler_(parent), connection_balancer_(connection_balancer),
-      listen_address_(listen_address) {
+      listen_address_(listen_address),
+      overload_state_(overload_state) {
   connection_balancer_.registerHandler(*this);
 }
 
