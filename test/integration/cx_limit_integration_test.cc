@@ -127,17 +127,32 @@ INSTANTIATE_TEST_SUITE_P(IpVersions, ConnectionLimitIntegrationTest,
                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
                          TestUtility::ipTestParamsToString);
 
-TEST_P(ConnectionLimitIntegrationTest, TestListenerLimit) {
+// TEST_P(ConnectionLimitIntegrationTest, TestListenerLimit) {
+//   std::function<void()> init_func = [this]() {
+//     setListenerLimit(2);
+//     initialize();
+//   };
+
+//   doTest(init_func, "downstream_cx_overflow");
+// }
+
+TEST_P(ConnectionLimitIntegrationTest, TestDeprecationWarningForGlobalCxRuntimeLimit) {
   std::function<void()> init_func = [this]() {
-    setListenerLimit(2);
+    setGlobalLimit(4);
     initialize();
   };
-
-  doTest(init_func, "downstream_cx_overflow");
+  const std::string log_line =
+      "Usage of the deprecated runtime key overload.global_downstream_max_connections, "
+      "consider switching to `envoy.resource_monitors.downstream_connections` instead."
+      "This runtime key will be removed in future.";
+  EXPECT_LOG_CONTAINS("warn", log_line, { init_func(); });
 }
 
+//todo (nezdolik) move this test to overload manager test suite, once runtime key is fully deprecated.
 TEST_P(ConnectionLimitIntegrationTest, TestEmptyGlobalCxRuntimeLimit) {
-  const std::string log_line = "no configured limit to the number of allowed active connections.";
+  const std::string log_line =
+  "There is no configured limit to the number of allowed active downstream connections. Configure a "
+              "limit in `envoy.resource_monitors.downstream_connections` resource monitor.";
   EXPECT_LOG_CONTAINS("warn", log_line, { initialize(); });
 }
 

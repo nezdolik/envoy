@@ -757,4 +757,48 @@ TEST_P(LoadShedPointIntegrationTest, Http2ServerDispatchSendsGoAwayCompletingPen
       "overload.envoy.load_shed_points.http2_server_go_away_on_dispatch.scale_percent", 0);
 }
 
+class GlobalDownstreamCxLimitIntegrationTest : public BaseOverloadIntegrationTest,
+                                     public HttpProtocolIntegrationTest {
+protected:
+  void initializeOverloadManager(const envoy::config::overload::v3::OverloadAction& overload_action) {
+    overload_manager_config_ = getBaseOverloadManagerConfig();
+    *overload_manager_config_.add_actions() = overload_action;
+    config_helper_.addConfigModifier([this](envoy::config::bootstrap::v3::Bootstrap& bootstrap) {
+      *bootstrap.mutable_overload_manager() = this->overload_manager_config_;
+    });
+    initialize();
+    updateResource(0);
+  }
+
+envoy::config::overload::v3::OverloadManager getOverloadManagerConfig() {
+  return TestUtility::parseYaml<envoy::config::overload::v3::OverloadManager>(R"EOF(
+        refresh_interval:
+          seconds: 1
+        resource_monitors:
+          - name: "envoy.resource_monitors.global_downstream_max_connections"
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.resource_monitors.downstream_connections.v3.DownstreamConnectionsConfig
+              max_active_downstream_connections: 4
+      )EOF");
+}
+};
+
+INSTANTIATE_TEST_SUITE_P(Protocols, GlobalDownstreamCxLimitIntegrationTest,
+                         testing::ValuesIn(HttpProtocolIntegrationTest::getProtocolTestParams(
+                             {Http::CodecClient::Type::HTTP1, Http::CodecClient::Type::HTTP2,
+                              Http::CodecClient::Type::HTTP3},
+                             {FakeHttpConnection::Type::HTTP1, FakeHttpConnection::Type::HTTP2})),
+                         HttpProtocolIntegrationTest::protocolTestParamsToString);
+
+TEST_P(GlobalDownstreamCxLimitIntegrationTest, Http2ServerDispatchSendsGoAwayCompletingPendingRequests) {
+  initializeOverloadManager(
+      TestUtility::parseYaml<envoy::config::overload::v3::OverloadAction>(R"EOF(
+      name: "envoy.overload_actions.stop_accepting_requests"
+      triggers:
+        - name: "envoy.resource_monitors.global_downstream_max_connections"
+          threshold:
+            value: 0.5
+    )EOF"));
+}
+
 } // namespace Envoy
