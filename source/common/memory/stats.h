@@ -84,6 +84,7 @@ public:
       Thread::LockGuard guard(mutex_);
       terminating_ = true;
     }
+    tcmalloc_routine_dispatcher_->exit();
     if (tcmalloc_thread_) {
       tcmalloc_thread_->join();
     }
@@ -107,17 +108,33 @@ private:
    */
   void configureBackgroundMemoryRelease(Api::Api& api) {
     RELEASE_ASSERT(!tcmalloc_thread_, "Invalid state, tcmalloc have already been initialised");
+    tcmalloc_routine_dispatcher_ = api.allocateDispatcher(std::string(TCMALLOC_ROUTINE_THREAD_ID));
+    memory_release_timer_ = tcmalloc_routine_dispatcher_->createTimer([this]() -> void {
+      Thread::ReleasableLockGuard guard(mutex_);
+      if (terminating_) {
+        guard.release();
+        memory_release_timer_->disableTimer();
+        return;
+      }
+      tcmallocRelease();
+      allocator_manager_stats_.released_by_timer_.inc();
+      memory_release_timer_->enableTimer(memory_release_interval_msec_);
+    });
     tcmalloc_thread_ = api.threadFactory().createThread(
-        [this, &api]() -> void { tcmallocProcessBackgroundActionsThreadRoutine(api); },
+        [this]() -> void {
+          ENVOY_LOG_MISC(debug, "Started {}", TCMALLOC_ROUTINE_THREAD_ID);
+          memory_release_timer_->enableTimer(std::chrono::milliseconds(0));
+          tcmalloc_routine_dispatcher_->run(Event::Dispatcher::RunType::RunUntilExit);
+          },
         Thread::Options{std::string(TCMALLOC_ROUTINE_THREAD_ID)});
     ENVOY_LOG_MISC(
         info,
         fmt::format(
             "Configured tcmalloc with background release rate: {} bytes per {} milliseconds",
-            bytes_to_release_, memory_release_interval_msec_.count())); 
+            bytes_to_release_, memory_release_interval_msec_.count()));
   }
 
-  void tcmallocProcessBackgroundActionsThreadRoutine(Api::Api& api);
+  void tcmallocRelease();
 };
 
 } // namespace Memory
