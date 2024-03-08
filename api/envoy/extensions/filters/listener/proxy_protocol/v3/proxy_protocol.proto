@@ -70,4 +70,22 @@ message ProxyProtocol {
   //   :ref:`core.v3.ProxyProtocolConfig.pass_through_tlvs <envoy_v3_api_field_config.core.v3.ProxyProtocolConfig.pass_through_tlvs>`,
   //   which controls pass-through for the upstream.
   config.core.v3.ProxyProtocolPassThroughTLVs pass_through_tlvs = 3;
+
+  message TypedMetadataKeyValuePair {
+    // The key to use within the namespace.
+    string key = 1 [(validate.rules).string = {min_len: 1}];
+
+    // Value in bytes representing a single TLV value.
+    google.protobuf.BytesValue value = 2;
+  }
+
+  message TypedMetadata {
+   //TODO fix the api docs.
+  // Typed proxy protocol filter metadata, that represents map of TLVs.
+  // This metadata can be accessed by proxy protocol namespace.
+  // Each entry in the map consists of a key (TLV type) and value (TLV value in bytes).
+  // Typed metadata will be set by default in proxy proto filter. To use untyped filter metadata instead,
+  // disable runtime flag ``envoy.reloadable_features.use_typed_metadata_in_proxy_protol_listener``.
+  map<string, google.protobuf.BytesValue> typed_metadata = 1;
+ }
 }
