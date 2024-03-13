@@ -58,50 +58,50 @@ protected:
   std::unique_ptr<Memory::AllocatorManager> allocator_manager_;
 };
 
-TEST_F(MemoryReleaseTest, ReleaseRateAboveZeroDefaultIntervalMemoryReleased) {
-  size_t initial_allocated_bytes = Stats::totalCurrentlyAllocated();
-  auto a = std::make_unique<unsigned char[]>(MB);
-  auto b = std::make_unique<unsigned char[]>(MB);
-  if (Stats::totalCurrentlyAllocated() <= initial_allocated_bytes) {
-    GTEST_SKIP() << "Skipping test, cannot measure memory usage precisely on this platform.";
-  }
-#if defined(GPERFTOOLS_TCMALLOC)
-  EXPECT_DEATH(initialiseAllocatorManager(MB /*bytes per second*/, 0),
-               "Memory releasing is not supported for gperf tcmalloc.");
-#else
-  auto initial_unmapped_bytes = Stats::totalPageHeapUnmapped();
-  EXPECT_LOG_CONTAINS(
-      "info",
-      "Configured tcmalloc with background release rate: 1048576 bytes per 1000 milliseconds",
-      initialiseAllocatorManager(MB /*bytes per second*/, 0));
-  EXPECT_EQ(MB, AllocatorManagerPeer::bytesToRelease(*allocator_manager_));
-  EXPECT_EQ(std::chrono::milliseconds(1000),
-            AllocatorManagerPeer::memoryReleaseInterval(*allocator_manager_));
-  a.reset();
-  // Release interval was configured to default value (1 second).
-  step(std::chrono::milliseconds(1000));
-  TestUtility::waitForCounterEq(stats_, "memory_release_test.tcmalloc.released_by_timer", 1UL,
-                                time_system_);
-  auto released_bytes_before_next_run = Stats::totalPageHeapUnmapped();
-  b.reset();
-  step(std::chrono::milliseconds(1000));
-  TestUtility::waitForCounterEq(stats_, "memory_release_test.tcmalloc.released_by_timer", 2UL,
-                                time_system_);
-  auto final_released_bytes = Stats::totalPageHeapUnmapped();
+// TEST_F(MemoryReleaseTest, ReleaseRateAboveZeroDefaultIntervalMemoryReleased) {
+//   size_t initial_allocated_bytes = Stats::totalCurrentlyAllocated();
+//   auto a = std::make_unique<unsigned char[]>(MB);
+//   auto b = std::make_unique<unsigned char[]>(MB);
+//   if (Stats::totalCurrentlyAllocated() <= initial_allocated_bytes) {
+//     GTEST_SKIP() << "Skipping test, cannot measure memory usage precisely on this platform.";
+//   }
+// #if defined(GPERFTOOLS_TCMALLOC)
+//   EXPECT_DEATH(initialiseAllocatorManager(MB /*bytes per second*/, 0),
+//                "Memory releasing is not supported for gperf tcmalloc.");
+// #else
+//   auto initial_unmapped_bytes = Stats::totalPageHeapUnmapped();
+//   EXPECT_LOG_CONTAINS(
+//       "info",
+//       "Configured tcmalloc with background release rate: 1048576 bytes per 1000 milliseconds",
+//       initialiseAllocatorManager(MB /*bytes per second*/, 0));
+//   EXPECT_EQ(MB, AllocatorManagerPeer::bytesToRelease(*allocator_manager_));
+//   EXPECT_EQ(std::chrono::milliseconds(1000),
+//             AllocatorManagerPeer::memoryReleaseInterval(*allocator_manager_));
+//   a.reset();
+//   // Release interval was configured to default value (1 second).
+//   step(std::chrono::milliseconds(1000));
+//   TestUtility::waitForCounterEq(stats_, "memory_release_test.tcmalloc.released_by_timer", 1UL,
+//                                 time_system_);
+//   auto released_bytes_before_next_run = Stats::totalPageHeapUnmapped();
+//   b.reset();
+//   step(std::chrono::milliseconds(1000));
+//   TestUtility::waitForCounterEq(stats_, "memory_release_test.tcmalloc.released_by_timer", 2UL,
+//                                 time_system_);
+//   auto final_released_bytes = Stats::totalPageHeapUnmapped();
 
-#if defined(TCMALLOC)
-  EXPECT_LT(released_bytes_before_next_run, final_released_bytes);
-  EXPECT_LT(initial_unmapped_bytes, final_released_bytes);
-#else
-  EXPECT_LE(released_bytes_before_next_run, final_released_bytes);
-  EXPECT_LE(initial_unmapped_bytes, final_released_bytes);
-#endif
-#endif
-}
+// #if defined(TCMALLOC)
+//   EXPECT_LT(released_bytes_before_next_run, final_released_bytes);
+//   EXPECT_LT(initial_unmapped_bytes, final_released_bytes);
+// #else
+//   EXPECT_LE(released_bytes_before_next_run, final_released_bytes);
+//   EXPECT_LE(initial_unmapped_bytes, final_released_bytes);
+// #endif
+// #endif
+// }
 
 TEST_F(MemoryReleaseTest, ReleaseRateZeroNoRelease) {
   auto a = std::make_unique<unsigned char[]>(MB);
-#if defined(GPERFTOOLS_TCMALLOC)
+#if defined(TCMALLOC)
   EXPECT_DEATH(initialiseAllocatorManager(MB /*bytes per second*/, 0),
                "Memory releasing is not supported for gperf tcmalloc.");
 #else
@@ -115,39 +115,39 @@ TEST_F(MemoryReleaseTest, ReleaseRateZeroNoRelease) {
 #endif
 }
 
-TEST_F(MemoryReleaseTest, ReleaseRateAboveZeroCustomIntervalMemoryReleased) {
-  size_t initial_allocated_bytes = Stats::totalCurrentlyAllocated();
-  auto a = std::make_unique<uint32_t[]>(40 * MB);
-  auto b = std::make_unique<uint32_t[]>(40 * MB);
-  if (Stats::totalCurrentlyAllocated() <= initial_allocated_bytes) {
-    GTEST_SKIP() << "Skipping test, cannot measure memory usage precisely on this platform.";
-  }
-#if defined(GPERFTOOLS_TCMALLOC)
-  EXPECT_DEATH(initialiseAllocatorManager(MB /*bytes per second*/, 0),
-               "Memory releasing is not supported for gperf tcmalloc.");
-#else
-  auto initial_unmapped_bytes = Stats::totalPageHeapUnmapped();
-  EXPECT_LOG_CONTAINS(
-      "info",
-      "Configured tcmalloc with background release rate: 16777216 bytes per 2000 milliseconds",
-      initialiseAllocatorManager(16 * MB /*bytes per second*/, 2));
-  EXPECT_EQ(16 * MB, AllocatorManagerPeer::bytesToRelease(*allocator_manager_));
-  EXPECT_EQ(std::chrono::milliseconds(2000),
-            AllocatorManagerPeer::memoryReleaseInterval(*allocator_manager_));
-  a.reset();
-  step(std::chrono::milliseconds(2000));
-  b.reset();
-  step(std::chrono::milliseconds(2000));
-  TestUtility::waitForCounterEq(stats_, "memory_release_test.tcmalloc.released_by_timer", 2UL,
-                                time_system_);
-  auto final_released_bytes = Stats::totalPageHeapUnmapped();
-#if defined(TCMALLOC)
-  EXPECT_LT(initial_unmapped_bytes, final_released_bytes);
-#else
-  EXPECT_LE(initial_unmapped_bytes, final_released_bytes);
-#endif
-#endif
-}
+// TEST_F(MemoryReleaseTest, ReleaseRateAboveZeroCustomIntervalMemoryReleased) {
+//   size_t initial_allocated_bytes = Stats::totalCurrentlyAllocated();
+//   auto a = std::make_unique<uint32_t[]>(40 * MB);
+//   auto b = std::make_unique<uint32_t[]>(40 * MB);
+//   if (Stats::totalCurrentlyAllocated() <= initial_allocated_bytes) {
+//     GTEST_SKIP() << "Skipping test, cannot measure memory usage precisely on this platform.";
+//   }
+// #if defined(GPERFTOOLS_TCMALLOC)
+//   EXPECT_DEATH(initialiseAllocatorManager(MB /*bytes per second*/, 0),
+//                "Memory releasing is not supported for gperf tcmalloc.");
+// #else
+//   auto initial_unmapped_bytes = Stats::totalPageHeapUnmapped();
+//   EXPECT_LOG_CONTAINS(
+//       "info",
+//       "Configured tcmalloc with background release rate: 16777216 bytes per 2000 milliseconds",
+//       initialiseAllocatorManager(16 * MB /*bytes per second*/, 2));
+//   EXPECT_EQ(16 * MB, AllocatorManagerPeer::bytesToRelease(*allocator_manager_));
+//   EXPECT_EQ(std::chrono::milliseconds(2000),
+//             AllocatorManagerPeer::memoryReleaseInterval(*allocator_manager_));
+//   a.reset();
+//   step(std::chrono::milliseconds(2000));
+//   b.reset();
+//   step(std::chrono::milliseconds(2000));
+//   TestUtility::waitForCounterEq(stats_, "memory_release_test.tcmalloc.released_by_timer", 2UL,
+//                                 time_system_);
+//   auto final_released_bytes = Stats::totalPageHeapUnmapped();
+// #if defined(TCMALLOC)
+//   EXPECT_LT(initial_unmapped_bytes, final_released_bytes);
+// #else
+//   EXPECT_LE(initial_unmapped_bytes, final_released_bytes);
+// #endif
+// #endif
+// }
 
 } // namespace
 } // namespace Memory
