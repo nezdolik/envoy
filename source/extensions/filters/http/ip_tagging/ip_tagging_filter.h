@@ -26,6 +26,10 @@ namespace IpTagging {
  */
 enum class FilterRequestType { INTERNAL, EXTERNAL, BOTH };
 
+using IpTaggingFilterConfigProviderManager =
+    Filter::FilterConfigProviderManager<Filter::HttpFilterFactoryCb,
+                                        Server::Configuration::FactoryContext>;
+
 /**
  * Configuration for the HTTP IP Tagging filter.
  */
@@ -62,6 +66,10 @@ private:
 
   void incCounter(Stats::StatName name);
 
+  std::shared_ptr<IpTaggingFilterConfigProviderManager>
+  createSingletonIpTaggingFilterConfigProviderManager(
+      Server::Configuration::ServerFactoryContext& context);
+
   const FilterRequestType request_type_;
   Stats::Scope& scope_;
   Runtime::Loader& runtime_;
@@ -71,6 +79,8 @@ private:
   const Stats::StatName total_;
   const Stats::StatName unknown_tag_;
   std::unique_ptr<Network::LcTrie::LcTrie<std::string>> trie_;
+  std::shared_ptr<IpTaggingFilterConfigProviderManager>
+      filter_config_provider_manager_;
 };
 
 using IpTaggingFilterConfigSharedPtr = std::shared_ptr<IpTaggingFilterConfig>;

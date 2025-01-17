@@ -14,44 +14,52 @@ namespace HttpFilters {
 namespace IpTagging {
 
 IpTaggingFilterConfig::IpTaggingFilterConfig(
+    Configuration::ServerFactoryContext& context,
     const envoy::extensions::filters::http::ip_tagging::v3::IPTagging& config,
     const std::string& stat_prefix, Stats::Scope& scope, Runtime::Loader& runtime)
     : request_type_(requestTypeEnum(config.request_type())), scope_(scope), runtime_(runtime),
       stat_name_set_(scope.symbolTable().makeSet("IpTagging")),
       stats_prefix_(stat_name_set_->add(stat_prefix + "ip_tagging")),
       no_hit_(stat_name_set_->add("no_hit")), total_(stat_name_set_->add("total")),
-      unknown_tag_(stat_name_set_->add("unknown_tag.hit")) {
+      unknown_tag_(stat_name_set_->add("unknown_tag.hit")),
+      filter_config_provider_manager_(createSingletonIpTaggingFilterConfigProviderManager(context)) {
 
-  // Once loading IP tags from a file system is supported, the restriction on the size
-  // of the set should be removed and observability into what tags are loaded needs
-  // to be implemented.
-  // TODO(ccaraman): Remove size check once file system support is implemented.
-  // Work is tracked by issue https://github.com/envoyproxy/envoy/issues/2695.
-  if (config.ip_tags().empty()) {
-    throw EnvoyException("HTTP IP Tagging Filter requires ip_tags to be specified.");
+  if (!config.ip_tags().empty() && config.has_dynamic_ip_tags()) {
+    throw EnvoyException(
+        fmt::format("Error: Only one of `ip_tags` or `dynamic_ip_tags` can be set."));
+  }
+
+  if (config.ip_tags().empty() && !config.has_dynamic_ip_tags()) {
+    throw EnvoyException("HTTP IP Tagging Filter requires eihter ip_tags or dynamic_ip_tags to be specified.");
   }
 
   std::vector<std::pair<std::string, std::vector<Network::Address::CidrRange>>> tag_data;
-  tag_data.reserve(config.ip_tags().size());
-  for (const auto& ip_tag : config.ip_tags()) {
-    std::vector<Network::Address::CidrRange> cidr_set;
-    cidr_set.reserve(ip_tag.ip_list().size());
-    for (const envoy::config::core::v3::CidrRange& entry : ip_tag.ip_list()) {
 
-      absl::StatusOr<Network::Address::CidrRange> cidr_or_error =
-          Network::Address::CidrRange::create(entry);
-      if (cidr_or_error.status().ok()) {
-        cidr_set.emplace_back(std::move(cidr_or_error.value()));
-      } else {
-        throw EnvoyException(
-            fmt::format("invalid ip/mask combo '{}/{}' (format is <ip>/<# mask bits>)",
-                        entry.address_prefix(), entry.prefix_len().value()));
+  if (config.has_dynamic_ip_tags()) {
+    //TBD
+  } else {
+      tag_data.reserve(config.ip_tags().size());
+      for (const auto& ip_tag : config.ip_tags()) {
+        std::vector<Network::Address::CidrRange> cidr_set;
+        cidr_set.reserve(ip_tag.ip_list().size());
+        for (const envoy::config::core::v3::CidrRange& entry : ip_tag.ip_list()) {
+
+          absl::StatusOr<Network::Address::CidrRange> cidr_or_error =
+              Network::Address::CidrRange::create(entry);
+          if (cidr_or_error.status().ok()) {
+            cidr_set.emplace_back(std::move(cidr_or_error.value()));
+          } else {
+            throw EnvoyException(
+                fmt::format("invalid ip/mask combo '{}/{}' (format is <ip>/<# mask bits>)",
+                            entry.address_prefix(), entry.prefix_len().value()));
+          }
+        }
+
+        tag_data.emplace_back(ip_tag.ip_tag_name(), cidr_set);
+        stat_name_set_->rememberBuiltin(absl::StrCat(ip_tag.ip_tag_name(), ".hit"));
       }
-    }
-
-    tag_data.emplace_back(ip_tag.ip_tag_name(), cidr_set);
-    stat_name_set_->rememberBuiltin(absl::StrCat(ip_tag.ip_tag_name(), ".hit"));
   }
+
   trie_ = std::make_unique<Network::LcTrie::LcTrie<std::string>>(tag_data);
 }
 
