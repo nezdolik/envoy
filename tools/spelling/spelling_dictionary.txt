@@ -28,11 +28,15 @@ BEL
 BBR
 BIDIRECTIONAL
 CCL
+CGROUP
+CROSSSLOT
 ECN
 ECS
 EKS
+Millicores
 NID
 NIST
+NORMALISATION
 bm
 BSON
 BPF
@@ -41,10 +45,12 @@ Bencoded
 CIO
 cbegin
 cend
+constness
 deadcode
 DFP
 Dynatrace
 DOM
+DONTFRAG
 Gasd
 GiB
 IPTOS
@@ -235,6 +241,7 @@ IANA
 IDL
 IETF
 IFADDRS
+IMUsed
 INADDR
 INET
 INVAL
@@ -312,6 +319,8 @@ NODATA
 NODELAY
 NODELETE
 NOLINT
+NOLINTBEGIN
+NOLINTEND
 NOLINTNEXTLINE
 NONAME
 NONBLOCK
@@ -328,6 +337,7 @@ ODCDS
 middlewildcard
 monostate
 mpd
+msan
 mutators
 mybucket
 myobject
@@ -1050,7 +1060,6 @@ oneof
 oneway
 oob
 opcode
-opencensus
 openssl
 opentracing
 optimizations

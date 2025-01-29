@@ -74,7 +74,8 @@ public:
 
 private:
   DnsCacheImpl(Server::Configuration::GenericFactoryContext& context,
-               const envoy::extensions::common::dynamic_forward_proxy::v3::DnsCacheConfig& config);
+               const envoy::extensions::common::dynamic_forward_proxy::v3::DnsCacheConfig& config,
+               Network::DnsResolverSharedPtr&& resolver);
   struct LoadDnsCacheEntryHandleImpl
       : public LoadDnsCacheEntryHandle,
         RaiiMapOfListElement<std::string, LoadDnsCacheEntryHandleImpl*> {
@@ -145,7 +146,7 @@ private:
       address_list_ = std::move(list);
     }
 
-    void setDetails(std::string details) {
+    void setDetails(absl::string_view details) {
       absl::WriterMutexLock lock{&resolve_lock_};
       details_ = details;
     }
@@ -167,6 +168,16 @@ private:
       first_resolve_complete_ = true;
     }
 
+    void setResolutionStatus(Network::DnsResolver::ResolutionStatus resolution_status) {
+      absl::WriterMutexLock lock{&resolve_lock_};
+      resolution_status_ = resolution_status;
+    }
+
+    Network::DnsResolver::ResolutionStatus resolutionStatus() const override {
+      absl::WriterMutexLock lock{&resolve_lock_};
+      return resolution_status_;
+    }
+
   private:
     friend class DnsCacheImplTest;
     TimeSource& time_source_;
@@ -177,6 +188,7 @@ private:
     std::vector<Network::Address::InstanceConstSharedPtr>
         address_list_ ABSL_GUARDED_BY(resolve_lock_);
     std::string details_ ABSL_GUARDED_BY(resolve_lock_){"not_resolved"};
+    Network::DnsResolver::ResolutionStatus resolution_status_ ABSL_GUARDED_BY(resolve_lock_);
 
     // Using std::chrono::steady_clock::duration is required for compilation within an atomic vs.
     // using MonotonicTime.
@@ -223,8 +235,9 @@ private:
   void finishResolve(const std::string& host, Network::DnsResolver::ResolutionStatus status,
                      absl::string_view details, std::list<Network::DnsResponse>&& response,
                      absl::optional<MonotonicTime> resolution_time = {},
-                     bool is_proxy_lookup = false);
-  void runAddUpdateCallbacks(const std::string& host, const DnsHostInfoSharedPtr& host_info);
+                     bool is_proxy_lookup = false, bool is_timeout = false);
+  absl::Status runAddUpdateCallbacks(const std::string& host,
+                                     const DnsHostInfoSharedPtr& host_info);
   void runResolutionCompleteCallbacks(const std::string& host,
                                       const DnsHostInfoSharedPtr& host_info,
                                       Network::DnsResolver::ResolutionStatus status);
@@ -270,6 +283,7 @@ private:
   absl::Mutex ip_version_to_remove_lock_;
   absl::optional<Network::Address::IpVersion>
       ip_version_to_remove_ ABSL_GUARDED_BY(ip_version_to_remove_lock_) = absl::nullopt;
+  bool enable_dfp_dns_trace_;
 };
 
 } // namespace DynamicForwardProxy

@@ -340,7 +340,8 @@ bool EnvoyQuicServerStream::OnStopSending(quic::QuicResetStreamError error) {
     runResetCallbacks(
         quicRstErrorToEnvoyRemoteResetReason(error.internal_code()),
         Runtime::runtimeFeatureEnabled("envoy.reloadable_features.report_stream_reset_error_code")
-            ? quic::QuicRstStreamErrorCodeToString(error.internal_code())
+            ? absl::StrCat(quic::QuicRstStreamErrorCodeToString(error.internal_code()),
+                           "|FROM_PEER")
             : absl::string_view());
   }
   return true;
@@ -360,7 +361,7 @@ void EnvoyQuicServerStream::OnStreamReset(const quic::QuicRstStreamFrame& frame)
     runResetCallbacks(
         quicRstErrorToEnvoyRemoteResetReason(frame.error_code),
         Runtime::runtimeFeatureEnabled("envoy.reloadable_features.report_stream_reset_error_code")
-            ? quic::QuicRstStreamErrorCodeToString(frame.error_code)
+            ? absl::StrCat(quic::QuicRstStreamErrorCodeToString(frame.error_code), "|FROM_PEER")
             : absl::string_view());
   }
 }
@@ -375,7 +376,8 @@ void EnvoyQuicServerStream::ResetWithError(quic::QuicResetStreamError error) {
     runResetCallbacks(
         quicRstErrorToEnvoyLocalResetReason(error.internal_code()),
         Runtime::runtimeFeatureEnabled("envoy.reloadable_features.report_stream_reset_error_code")
-            ? quic::QuicRstStreamErrorCodeToString(error.internal_code())
+            ? absl::StrCat(quic::QuicRstStreamErrorCodeToString(error.internal_code()),
+                           "|FROM_SELF")
             : absl::string_view());
   }
   quic::QuicSpdyServerStreamBase::ResetWithError(error);
@@ -419,6 +421,12 @@ void EnvoyQuicServerStream::OnClose() {
     return;
   }
   clearWatermarkBuffer();
+  if (stats_gatherer_->notify_ack_listener_before_soon_to_be_destroyed()) {
+    // Either stats_gatherer_ will do deferred logging upon receiving the last
+    // ACK, or OnSoonToBeDestroyed() will catch all the cases where the stream
+    // is destroyed without receiving the last ACK.
+    return;
+  }
   if (!stats_gatherer_->loggingDone()) {
     stats_gatherer_->maybeDoDeferredLog(/* record_ack_timing */ false);
   }
@@ -536,6 +544,17 @@ void EnvoyQuicServerStream::useCapsuleProtocol() {
 #endif
 
 void EnvoyQuicServerStream::OnInvalidHeaders() { onStreamError(absl::nullopt); }
+
+void EnvoyQuicServerStream::OnSoonToBeDestroyed() {
+  quic::QuicSpdyServerStreamBase::OnSoonToBeDestroyed();
+  if (stats_gatherer_ != nullptr &&
+      stats_gatherer_->notify_ack_listener_before_soon_to_be_destroyed() &&
+      !stats_gatherer_->loggingDone()) {
+    // Catch all the cases where the stream is destroyed without receiving the
+    // last ACK.
+    stats_gatherer_->maybeDoDeferredLog(/* record_ack_timing */ false);
+  }
+}
 
 } // namespace Quic
 } // namespace Envoy

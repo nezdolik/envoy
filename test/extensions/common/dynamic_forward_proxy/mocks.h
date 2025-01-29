@@ -100,6 +100,7 @@ public:
   MOCK_METHOD(void, touch, ());
   MOCK_METHOD(bool, firstResolveComplete, (), (const));
   MOCK_METHOD(std::string, details, ());
+  MOCK_METHOD(Network::DnsResolver::ResolutionStatus, resolutionStatus, (), (const));
 
   Network::Address::InstanceConstSharedPtr address_;
   std::vector<Network::Address::InstanceConstSharedPtr> address_list_;
@@ -111,7 +112,7 @@ public:
   MockUpdateCallbacks();
   ~MockUpdateCallbacks() override;
 
-  MOCK_METHOD(void, onDnsHostAddOrUpdate,
+  MOCK_METHOD(absl::Status, onDnsHostAddOrUpdate,
               (const std::string& host, const DnsHostInfoSharedPtr& address));
   MOCK_METHOD(void, onDnsHostRemove, (const std::string& host));
   MOCK_METHOD(void, onDnsResolutionComplete,

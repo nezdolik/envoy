@@ -111,6 +111,12 @@ public:
    * @return const Tracing::Span& the current tracing active span.
    */
   virtual Tracing::Span& activeSpan() PURE;
+
+  /**
+   * Set the upstream host override.
+   * @param host_and_strict supplies the host and whether the host should be treated as strict.
+   */
+  virtual void setUpstreamOverrideHost(std::pair<std::string, bool> host_and_strict) PURE;
 };
 
 class Filter;
@@ -172,12 +178,6 @@ public:
             {"bodyChunks", static_luaBodyChunks},
             {"trailers", static_luaTrailers},
             {"metadata", static_luaMetadata},
-            {"logTrace", static_luaLogTrace},
-            {"logDebug", static_luaLogDebug},
-            {"logInfo", static_luaLogInfo},
-            {"logWarn", static_luaLogWarn},
-            {"logErr", static_luaLogErr},
-            {"logCritical", static_luaLogCritical},
             {"httpCall", static_luaHttpCall},
             {"respond", static_luaRespond},
             {"streamInfo", static_luaStreamInfo},
@@ -187,7 +187,8 @@ public:
             {"base64Escape", static_luaBase64Escape},
             {"timestamp", static_luaTimestamp},
             {"timestampString", static_luaTimestampString},
-            {"connectionStreamInfo", static_luaConnectionStreamInfo}};
+            {"connectionStreamInfo", static_luaConnectionStreamInfo},
+            {"setUpstreamOverrideHost", static_luaSetUpstreamOverrideHost}};
   }
 
 private:
@@ -259,17 +260,6 @@ private:
   DECLARE_LUA_FUNCTION(StreamHandleWrapper, luaConnectionStreamInfo);
 
   /**
-   * Log a message to the Envoy log.
-   * @param 1 (string): The log message.
-   */
-  DECLARE_LUA_FUNCTION(StreamHandleWrapper, luaLogTrace);
-  DECLARE_LUA_FUNCTION(StreamHandleWrapper, luaLogDebug);
-  DECLARE_LUA_FUNCTION(StreamHandleWrapper, luaLogInfo);
-  DECLARE_LUA_FUNCTION(StreamHandleWrapper, luaLogWarn);
-  DECLARE_LUA_FUNCTION(StreamHandleWrapper, luaLogErr);
-  DECLARE_LUA_FUNCTION(StreamHandleWrapper, luaLogCritical);
-
-  /**
    * Verify cryptographic signatures.
    * @param 1 (string) hash function(including SHA1, SHA224, SHA256, SHA384, SHA512)
    * @param 2 (void*)  pointer to public key
@@ -317,6 +307,13 @@ private:
    * @return (string) timestamp.
    */
   DECLARE_LUA_FUNCTION(StreamHandleWrapper, luaTimestampString);
+
+  /**
+   * Set the upstream override host.
+   * @param 1 (string): The host address to override with.
+   * @param 2 (bool): Optional strict flag. Defaults to false.
+   */
+  DECLARE_LUA_FUNCTION(StreamHandleWrapper, luaSetUpstreamOverrideHost);
 
   enum Timestamp::Resolution getTimestampResolution(absl::string_view unit_parameter);
 
@@ -435,32 +432,11 @@ public:
   FilterConfigPerRoute(const envoy::extensions::filters::http::lua::v3::LuaPerRoute& config,
                        Server::Configuration::ServerFactoryContext& context);
 
-  ~FilterConfigPerRoute() override {
-    if (Runtime::runtimeFeatureEnabled(
-            "envoy.restart_features.allow_slot_destroy_on_worker_threads")) {
-      return;
-    }
-
-    // The design of the TLS system does not allow TLS state to be modified in worker threads.
-    // However, when the route configuration is dynamically updated via RDS, the old
-    // FilterConfigPerRoute object may be destructed in a random worker thread. Therefore, to
-    // ensure thread safety, ownership of per_lua_code_setup_ptr_ must be transferred to the main
-    // thread and destroyed when the FilterConfigPerRoute object is not destructed in the main
-    // thread.
-    if (per_lua_code_setup_ptr_ && !main_thread_dispatcher_.isThreadSafe()) {
-      auto shared_ptr_wrapper =
-          std::make_shared<PerLuaCodeSetupPtr>(std::move(per_lua_code_setup_ptr_));
-      main_thread_dispatcher_.post([shared_ptr_wrapper] { shared_ptr_wrapper->reset(); });
-    }
-  }
-
   bool disabled() const { return disabled_; }
   const std::string& name() const { return name_; }
   PerLuaCodeSetup* perLuaCodeSetup() const { return per_lua_code_setup_ptr_.get(); }
 
 private:
-  Event::Dispatcher& main_thread_dispatcher_;
-
   const bool disabled_;
   const std::string name_;
   PerLuaCodeSetupPtr per_lua_code_setup_ptr_;
@@ -497,14 +473,13 @@ PerLuaCodeSetup* getPerLuaCodeSetup(const FilterConfig* filter_config,
 /**
  * The HTTP Lua filter. Allows scripts to run in both the request an response flow.
  */
-class Filter : public Http::StreamFilter, Logger::Loggable<Logger::Id::lua> {
+class Filter : public Http::StreamFilter, private Filters::Common::Lua::LuaLoggable {
 public:
   Filter(FilterConfigConstSharedPtr config, TimeSource& time_source)
       : config_(config), time_source_(time_source), stats_(config->stats()) {}
 
   Upstream::ClusterManager& clusterManager() { return config_->cluster_manager_; }
   void scriptError(const Filters::Common::Lua::LuaException& e);
-  virtual void scriptLog(spdlog::level::level_enum level, absl::string_view message);
 
   // Http::StreamFilterBase
   void onDestroy() override;
@@ -571,6 +546,9 @@ private:
       return callbacks_->connection().ptr();
     }
     Tracing::Span& activeSpan() override { return callbacks_->activeSpan(); }
+    void setUpstreamOverrideHost(std::pair<std::string, bool> host_and_strict) override {
+      callbacks_->setUpstreamOverrideHost(std::move(host_and_strict));
+    }
 
     Filter& parent_;
     Http::StreamDecoderFilterCallbacks* callbacks_{};
@@ -595,6 +573,9 @@ private:
       return callbacks_->connection().ptr();
     }
     Tracing::Span& activeSpan() override { return callbacks_->activeSpan(); }
+    void setUpstreamOverrideHost(std::pair<std::string, bool> host_and_strict) override {
+      UNREFERENCED_PARAMETER(host_and_strict);
+    }
 
     Filter& parent_;
     Http::StreamEncoderFilterCallbacks* callbacks_{};

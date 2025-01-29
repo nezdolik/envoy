@@ -205,11 +205,8 @@ GrpcStatusFormatter::GrpcStatusFormatter(const std::string& main_header,
 absl::optional<std::string>
 GrpcStatusFormatter::formatWithContext(const HttpFormatterContext& context,
                                        const StreamInfo::StreamInfo& info) const {
-  if (Runtime::runtimeFeatureEnabled(
-          "envoy.reloadable_features.validate_grpc_header_before_log_grpc_status")) {
-    if (!Grpc::Common::isGrpcRequestHeaders(context.requestHeaders())) {
-      return absl::nullopt;
-    }
+  if (!Grpc::Common::isGrpcRequestHeaders(context.requestHeaders())) {
+    return absl::nullopt;
   }
   const auto grpc_status = Grpc::Common::getGrpcStatus(context.responseTrailers(),
                                                        context.responseHeaders(), info, true);
@@ -242,11 +239,8 @@ GrpcStatusFormatter::formatWithContext(const HttpFormatterContext& context,
 ProtobufWkt::Value
 GrpcStatusFormatter::formatValueWithContext(const HttpFormatterContext& context,
                                             const StreamInfo::StreamInfo& info) const {
-  if (Runtime::runtimeFeatureEnabled(
-          "envoy.reloadable_features.validate_grpc_header_before_log_grpc_status")) {
-    if (!Grpc::Common::isGrpcRequestHeaders(context.requestHeaders())) {
-      return SubstitutionFormatUtils::unspecifiedValue();
-    }
+  if (!Grpc::Common::isGrpcRequestHeaders(context.requestHeaders())) {
+    return SubstitutionFormatUtils::unspecifiedValue();
   }
   const auto grpc_status = Grpc::Common::getGrpcStatus(context.responseTrailers(),
                                                        context.responseHeaders(), info, true);
@@ -290,6 +284,29 @@ absl::optional<std::string> StreamInfoRequestHeaderFormatter::formatWithContext(
 ProtobufWkt::Value StreamInfoRequestHeaderFormatter::formatValueWithContext(
     const HttpFormatterContext&, const StreamInfo::StreamInfo& stream_info) const {
   return HeaderFormatter::formatValue(*stream_info.getRequestHeaders());
+}
+
+QueryParameterFormatter::QueryParameterFormatter(absl::string_view parameter_key,
+                                                 absl::optional<size_t> max_length)
+    : parameter_key_(parameter_key), max_length_(max_length) {}
+
+// FormatterProvider
+absl::optional<std::string>
+QueryParameterFormatter::formatWithContext(const HttpFormatterContext& context,
+                                           const StreamInfo::StreamInfo&) const {
+  const auto query_params = Envoy::Http::Utility::QueryParamsMulti::parseAndDecodeQueryString(
+      context.requestHeaders().getPathValue());
+  absl::optional<std::string> value = query_params.getFirstValue(parameter_key_);
+  if (value.has_value() && max_length_.has_value()) {
+    SubstitutionFormatUtils::truncate(value.value(), max_length_.value());
+  }
+  return value;
+}
+
+ProtobufWkt::Value
+QueryParameterFormatter::formatValueWithContext(const HttpFormatterContext& context,
+                                                const StreamInfo::StreamInfo& stream_info) const {
+  return ValueUtil::optionalStringValue(formatWithContext(context, stream_info));
 }
 
 const BuiltInHttpCommandParser::FormatterProviderLookupTbl&
@@ -369,8 +386,14 @@ BuiltInHttpCommandParser::getKnownFormatters() {
                                                            result.value().second, max_length);
          }}},
        {"TRACE_ID",
-        {CommandSyntaxChecker::COMMAND_ONLY, [](absl::string_view, absl::optional<size_t>) {
+        {CommandSyntaxChecker::COMMAND_ONLY,
+         [](absl::string_view, absl::optional<size_t>) {
            return std::make_unique<TraceIDFormatter>();
+         }}},
+       {"QUERY_PARAM",
+        {CommandSyntaxChecker::PARAMS_REQUIRED | CommandSyntaxChecker::LENGTH_ALLOWED,
+         [](absl::string_view format, absl::optional<size_t> max_length) {
+           return std::make_unique<QueryParameterFormatter>(std::string(format), max_length);
          }}}});
 }
 

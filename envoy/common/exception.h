@@ -30,8 +30,8 @@ public:
 };
 
 #define SET_AND_RETURN_IF_NOT_OK(check_status, set_status)                                         \
-  if (!check_status.ok()) {                                                                        \
-    set_status = check_status;                                                                     \
+  if (const absl::Status temp_status = check_status; !temp_status.ok()) {                          \
+    set_status = temp_status;                                                                      \
     return;                                                                                        \
   }
 
@@ -55,10 +55,17 @@ public:
     return temp_status;                                                                            \
   }
 
-// Make sure this works for functions without calling the functoin twice as well.
+// Make sure this works for functions without calling the function twice as well.
 #define RETURN_IF_NOT_OK(status_fn)                                                                \
   if (absl::Status temp_status = (status_fn); !temp_status.ok()) {                                 \
     return temp_status;                                                                            \
+  }
+
+// This macro is used to return from a function directly if the status is not ok
+// without returning a status value.
+#define RETURN_ONLY_IF_NOT_OK_REF(variable)                                                        \
+  if (!variable.ok()) {                                                                            \
+    return;                                                                                        \
   }
 
 template <class Type> Type returnOrThrow(absl::StatusOr<Type> type_or_error) {
@@ -66,6 +73,6 @@ template <class Type> Type returnOrThrow(absl::StatusOr<Type> type_or_error) {
   return std::move(type_or_error.value());
 }
 
-#define THROW_OR_RETURN_VALUE(expression, type) returnOrThrow<type>(expression)
+#define THROW_OR_RETURN_VALUE(expression, type) ::Envoy::returnOrThrow<type>(expression)
 
 } // namespace Envoy

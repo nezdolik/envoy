@@ -33,7 +33,7 @@ ActiveQuicListener::ActiveQuicListener(
     Network::SocketSharedPtr&& listen_socket, Network::ListenerConfig& listener_config,
     const quic::QuicConfig& quic_config, bool kernel_worker_routing,
     const envoy::config::core::v3::RuntimeFeatureFlag& enabled, QuicStatNames& quic_stat_names,
-    uint32_t packets_to_read_to_connection_count_ratio, bool receive_ecn,
+    uint32_t packets_to_read_to_connection_count_ratio,
     EnvoyQuicCryptoServerStreamFactoryInterface& crypto_server_stream_factory,
     EnvoyQuicProofSourceFactoryInterface& proof_source_factory,
     QuicConnectionIdGeneratorPtr&& cid_generator, QuicConnectionIdWorkerSelector worker_selector,
@@ -72,32 +72,29 @@ ActiveQuicListener::ActiveQuicListener(
   auto alarm_factory =
       std::make_unique<EnvoyQuicAlarmFactory>(dispatcher_, *connection_helper->GetClock());
   // Set the socket to report incoming ECN.
-  if (receive_ecn) {
-    if (udp_listener_->localAddress() == nullptr ||
-        udp_listener_->localAddress()->ip() == nullptr) {
-      IS_ENVOY_BUG("UDP Listener does not have local IP address");
-    } else {
-      int optval = 1;
-      socklen_t optlen = sizeof(optval);
-      if (udp_listener_->localAddress()->ip()->ipv6() != nullptr) {
-        listen_socket_.setSocketOption(IPPROTO_IPV6, IPV6_RECVTCLASS, &optval, optlen);
+  if (udp_listener_->localAddress() == nullptr || udp_listener_->localAddress()->ip() == nullptr) {
+    IS_ENVOY_BUG("UDP Listener does not have local IP address");
+  } else {
+    int optval = 1;
+    socklen_t optlen = sizeof(optval);
+    if (udp_listener_->localAddress()->ip()->ipv6() != nullptr) {
+      listen_socket_.setSocketOption(IPPROTO_IPV6, IPV6_RECVTCLASS, &optval, optlen);
 #ifndef __APPLE__
-        // Linux dual-stack sockets require setting IP_RECVTOS separately. Apple
-        // sockets will return an error.
-        if (!udp_listener_->localAddress()->ip()->ipv6()->v6only()) {
-          listen_socket_.setSocketOption(IPPROTO_IP, IP_RECVTOS, &optval, optlen);
-        }
-#endif // __APPLE__
-      } else {
+      // Linux dual-stack sockets require setting IP_RECVTOS separately. Apple
+      // sockets will return an error.
+      if (!udp_listener_->localAddress()->ip()->ipv6()->v6only()) {
         listen_socket_.setSocketOption(IPPROTO_IP, IP_RECVTOS, &optval, optlen);
       }
+#endif // __APPLE__
+    } else {
+      listen_socket_.setSocketOption(IPPROTO_IP, IP_RECVTOS, &optval, optlen);
     }
   }
   quic_dispatcher_ = std::make_unique<EnvoyQuicDispatcher>(
       crypto_config_.get(), quic_config, &version_manager_, std::move(connection_helper),
       std::move(alarm_factory), quic::kQuicDefaultConnectionIdLength, parent, *config_, stats_,
       per_worker_stats_, dispatcher, listen_socket_, quic_stat_names, crypto_server_stream_factory_,
-      *connection_id_generator_, std::move(debug_visitor_factory));
+      *connection_id_generator_, debug_visitor_factory);
 
   // Create udp_packet_writer
   Network::UdpPacketWriterPtr udp_packet_writer =
@@ -119,7 +116,7 @@ ActiveQuicListener::ActiveQuicListener(
   if (listener_config.udpListenerConfig()) {
     const auto& save_cmsg_configs =
         listener_config.udpListenerConfig()->config().quic_options().save_cmsg_config();
-    if (save_cmsg_configs.size() > 0) {
+    if (!save_cmsg_configs.empty()) {
       // QUIC only supports a single cmsg config.
       const envoy::config::core::v3::SocketCmsgHeaders save_cmsg_config = save_cmsg_configs.at(0);
       if (save_cmsg_config.has_level()) {
@@ -261,12 +258,11 @@ void ActiveQuicListener::closeConnectionsWithFilterChain(const Network::FilterCh
 ActiveQuicListenerFactory::ActiveQuicListenerFactory(
     const envoy::config::listener::v3::QuicProtocolOptions& config, uint32_t concurrency,
     QuicStatNames& quic_stat_names, ProtobufMessage::ValidationVisitor& validation_visitor,
-    Server::Configuration::ServerFactoryContext& context)
+    Server::Configuration::ListenerFactoryContext& context)
     : concurrency_(concurrency), enabled_(config.enabled()), quic_stat_names_(quic_stat_names),
       packets_to_read_to_connection_count_ratio_(
           PROTOBUF_GET_WRAPPED_OR_DEFAULT(config, packets_to_read_to_connection_count_ratio,
                                           DEFAULT_PACKETS_TO_READ_PER_CONNECTION)),
-      receive_ecn_(Runtime::runtimeFeatureEnabled("envoy.reloadable_features.quic_receive_ecn")),
       context_(context), reject_new_connections_(config.reject_new_connections()) {
   const int64_t idle_network_timeout_ms =
       config.has_idle_timeout() ? DurationUtil::durationToMilliseconds(config.idle_timeout())
@@ -313,12 +309,13 @@ ActiveQuicListenerFactory::ActiveQuicListenerFactory(
 
   // Initialize connection debug visitor factory if one is configured.
   if (config.has_connection_debug_visitor_config()) {
-    connection_debug_visitor_factory_ =
-        Config::Utility::getAndCheckFactory<EnvoyQuicConnectionDebugVisitorFactoryInterface>(
+    auto& factory =
+        Config::Utility::getAndCheckFactory<EnvoyQuicConnectionDebugVisitorFactoryFactoryInterface>(
             config.connection_debug_visitor_config());
-    if (connection_debug_visitor_factory_.has_value()) {
-      connection_debug_visitor_factory_->setContext(context_.processContext());
-    }
+    ProtobufTypes::MessagePtr message = Config::Utility::translateAnyToFactoryConfig(
+        config.connection_debug_visitor_config().typed_config(),
+        context_.messageValidationVisitor(), factory);
+    connection_debug_visitor_factory_ = factory.createFactory(*message, context_);
   }
 
   // Initialize connection ID generator factory.
@@ -349,7 +346,7 @@ ActiveQuicListenerFactory::ActiveQuicListenerFactory(
             *Config::Utility::translateToFactoryConfig(config.server_preferred_address_config(),
                                                        validation_visitor,
                                                        server_preferred_address_config_factory),
-            validation_visitor, context_);
+            validation_visitor, context_.serverFactoryContext());
   }
 
   worker_selector_ =
@@ -435,9 +432,9 @@ ActiveQuicListenerFactory::createActiveQuicListener(
   return std::make_unique<ActiveQuicListener>(
       runtime, worker_index, concurrency, dispatcher, parent, std::move(listen_socket),
       listener_config, quic_config, kernel_worker_routing, enabled, quic_stat_names,
-      packets_to_read_to_connection_count_ratio, receive_ecn_, crypto_server_stream_factory,
-      proof_source_factory, std::move(cid_generator), worker_selector_,
-      connection_debug_visitor_factory_, reject_new_connections_);
+      packets_to_read_to_connection_count_ratio, crypto_server_stream_factory, proof_source_factory,
+      std::move(cid_generator), worker_selector_,
+      makeOptRefFromPtr(connection_debug_visitor_factory_.get()), reject_new_connections_);
 }
 
 } // namespace Quic

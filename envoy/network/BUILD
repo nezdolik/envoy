@@ -13,7 +13,9 @@ envoy_cc_library(
     hdrs = ["address.h"],
     deps = [
         "//envoy/common:base_includes",
+        "//envoy/common:optref_lib",
         "//envoy/common:pure_lib",
+        "//envoy/stream_info:filter_state_interface",
     ],
 )
 
@@ -85,7 +87,10 @@ envoy_cc_library(
 envoy_cc_library(
     name = "dns_interface",
     hdrs = ["dns.h"],
-    deps = ["//envoy/network:address_interface"],
+    deps = [
+        "//envoy/common:time_interface",
+        "//envoy/network:address_interface",
+    ],
 )
 
 envoy_cc_library(
@@ -101,8 +106,7 @@ envoy_cc_library(
     name = "drain_decision_interface",
     hdrs = ["drain_decision.h"],
     deps = [
-        "//envoy/common:callback",
-        "@com_google_absl//absl/base",
+        "//envoy/common:pure_lib",
     ],
 )
 
