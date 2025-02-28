@@ -25,6 +25,7 @@ def tcmalloc_external_deps(repository):
     _repo = repo_label(repository)
     return selects.with_or({
         _repo("//bazel:disable_tcmalloc"): [],
+        _repo("//bazel:jemalloc"): [_repo("//bazel/foreign_cc:jemalloc")],
         (
             _repo("//bazel:debug_tcmalloc"),
             _repo("//bazel:gperftools_tcmalloc"),

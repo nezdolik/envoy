@@ -9,10 +9,19 @@
 #include "tcmalloc/malloc_extension.h"
 #elif defined(GPERFTOOLS_TCMALLOC)
 #include "gperftools/malloc_extension.h"
+#elif defined(JEMALLOC)
+#include "jemalloc/jemalloc.h"
 #endif
 
 namespace Envoy {
 namespace Memory {
+
+#ifdef JEMALLOC
+void malloc_stats_write_cb(void* opaque, const char* data) {
+    std::string* buf = static_cast<std::string*>(opaque);
+    buf->append(data);
+}
+#endif
 
 uint64_t Stats::totalCurrentlyAllocated() {
 #if defined(TCMALLOC)
@@ -22,6 +31,10 @@ uint64_t Stats::totalCurrentlyAllocated() {
   size_t value = 0;
   MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
   return value;
+#elif defined(JEMALLOC)
+    size_t sz, allocated;
+    mallctl("stats.allocated", &allocated, &sz, nullptr, 0);
+    return allocated;
 #else
   return 0;
 #endif
@@ -38,6 +51,10 @@ uint64_t Stats::totalCurrentlyReserved() {
   size_t value = 0;
   MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
   return value;
+#elif defined(JEMALLOC)
+    size_t sz, mapped;
+    mallctl("stats.mapped", &mapped, &sz, nullptr, 0);
+    return mapped;
 #else
   return 0;
 #endif
@@ -52,6 +69,10 @@ uint64_t Stats::totalThreadCacheBytes() {
   MallocExtension::instance()->GetNumericProperty("tcmalloc.current_total_thread_cache_bytes",
                                                   &value);
   return value;
+#elif defined(JEMALLOC)
+    size_t sz, tcache_bytes;
+    mallctl(fmt::format("stats.arenas.{}.tcache_bytes", MALLCTL_ARENAS_ALL).c_str(), &tcache_bytes, &sz, nullptr, 0);
+    return tcache_bytes;
 #else
   return 0;
 #endif
@@ -64,6 +85,12 @@ uint64_t Stats::totalPageHeapFree() {
   size_t value = 0;
   MallocExtension::instance()->GetNumericProperty("tcmalloc.pageheap_free_bytes", &value);
   return value;
+#elif defined(JEMALLOC)
+    size_t sz, extent_avail;
+    // TODO (nezdolik) Confirm with jemalloc maintainers that this is the right stat.
+    // https://github.com/jemalloc/jemalloc/issues/2829
+    mallctl(fmt::format("stats.arenas.{}.extent_avail", MALLCTL_ARENAS_ALL).c_str(), &extent_avail, &sz, nullptr, 0);
+    return extent_avail;
 #else
   return 0;
 #endif
@@ -77,6 +104,17 @@ uint64_t Stats::totalPageHeapUnmapped() {
   size_t value = 0;
   MallocExtension::instance()->GetNumericProperty("tcmalloc.pageheap_unmapped_bytes", &value);
   return value;
+#elif defined(JEMALLOC)
+  return 0;
+    // Muzzy pages - unused dirty pages that have been purged (via madvise(...MADV_FREE))
+  //   size_t sz, muzzy, muzzy_total;
+
+	// for (pszind_t i = 0; i < SC_NPSIZES; i++) {
+  //   mallctl(fmt::format("stats.arenas.{}.extents.{}.muzzy_bytes", MALLCTL_ARENAS_ALL, i).c_str(), &muzzy, &sz, nullptr, 0);
+  //   muzzy_total += muzzy;
+	// }
+  // return muzzy_total;
+
 #else
   return 0;
 #endif
@@ -89,6 +127,14 @@ uint64_t Stats::totalPhysicalBytes() {
   size_t value = 0;
   MallocExtension::instance()->GetNumericProperty("generic.total_physical_bytes", &value);
   return value;
+#elif defined(JEMALLOC)
+    size_t sz, resident;
+    mallctl("stats.resident", &resident, &sz, nullptr, 0);
+    return resident;
+#elif defined(JEMALLOC)
+    size_t sz, resident;
+    mallctl("stats.resident", &resident, &sz, nullptr, 0);
+    return resident;
 #else
   return 0;
 #endif
@@ -102,6 +148,11 @@ void Stats::dumpStatsToLog() {
   auto buffer = std::make_unique<char[]>(buffer_size);
   MallocExtension::instance()->GetStats(buffer.get(), buffer_size);
   ENVOY_LOG_MISC(debug, "TCMalloc stats:\n{}", buffer.get());
+#elif defined(JEMALLOC)
+  std::string buffer;
+  buffer.reserve(100000);
+  malloc_stats_print(malloc_stats_write_cb /*write_cb*/, &buffer, nullptr /*opts*/);
+  ENVOY_LOG_MISC(debug, "Jemalloc stats:\n{}", buffer);
 #else
   return;
 #endif
