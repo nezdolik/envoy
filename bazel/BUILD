@@ -251,6 +251,11 @@ config_setting(
 )
 
 config_setting(
+    name = "jemalloc",
+    values = {"define": "tcmalloc=jemalloc"},
+)
+
+config_setting(
     name = "disable_signal_trace",
     values = {"define": "signal_trace=disabled"},
 )
@@ -1019,7 +1024,7 @@ cc_library(
             "@com_github_google_tcmalloc//tcmalloc:profile_marshaler",
             "@com_github_google_tcmalloc//tcmalloc:malloc_extension",
         ],
-        "//conditions:default": ["//bazel/foreign_cc:gperftools"],
+        "//conditions:default": ["//bazel/foreign_cc:jemalloc"],
     }),
 )
 
@@ -1031,6 +1036,6 @@ cc_library(
             "//bazel:linux_x86_64",
             "//bazel:linux_aarch64",
         ): ["@com_github_google_tcmalloc//tcmalloc"],
-        "//conditions:default": ["//bazel/foreign_cc:gperftools"],
+        "//conditions:default": ["//bazel/foreign_cc:jemalloc"],
     }),
 )

@@ -57,12 +57,41 @@ configure_make(
     alwayslink = True,
 )
 
+configure_make(
+    name = "jemalloc_build",
+    configure_options = [
+        "--enable-shared",
+        "--enable-static",
+        "--with-pic",
+        "--enable-prof-libunwind",
+    ] + select({
+        "//conditions:default": [],
+    }),
+    lib_source = "@com_github_jemalloc_jemalloc//:all",
+    linkopts = [
+      "-lpthread",
+      "-lrt",
+        ],
+    autogen = True,
+    configure_in_place = True,
+    out_shared_libs = ["libjemalloc.so"],
+    out_static_libs = ["libjemalloc.a"],
+)
+
 # Workaround for https://github.com/bazelbuild/rules_foreign_cc/issues/227
 cc_library(
     name = "gperftools",
     tags = ["skip_on_windows"],
     deps = [
         "gperftools_build",
+    ],
+)
+
+cc_library(
+    name = "jemalloc",
+    tags = ["skip_on_windows"],
+    deps = [
+        "jemalloc_build",
     ],
 )
 

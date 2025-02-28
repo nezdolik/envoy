@@ -9,6 +9,8 @@
 #include "tcmalloc/malloc_extension.h"
 #elif defined(GPERFTOOLS_TCMALLOC)
 #include "gperftools/malloc_extension.h"
+#elif defined(JEMALLOC)
+#include "jemalloc/jemalloc.h"
 #endif
 
 namespace Envoy {
