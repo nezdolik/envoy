@@ -31,7 +31,9 @@ public:
 
 private:
   struct FileWatch : LinkedObject<FileWatch> {
-    ~FileWatch() { close(fd_); }
+    ~FileWatch() {
+      std::cerr <<  "***Closing watch for " <<file_<< std::endl;
+      close(fd_); }
 
     int fd_;
     uint32_t events_;

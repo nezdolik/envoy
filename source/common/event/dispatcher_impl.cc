@@ -279,6 +279,7 @@ void DispatcherImpl::run(RunType type) {
   // not guarantee that events are run in any particular order. So even if we post() and call
   // event_base_once() before some other event, the other event might get called first.
   runPostCallbacks();
+  std::cerr << "*****Running dispatcher" << std::endl;
   base_scheduler_.run(type);
 }
 

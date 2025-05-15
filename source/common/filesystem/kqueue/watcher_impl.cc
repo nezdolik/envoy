@@ -29,6 +29,8 @@ WatcherImpl::WatcherImpl(Event::Dispatcher& dispatcher, Filesystem::Instance& fi
           Event::FileTriggerType::Edge, Event::FileReadyType::Read)) {}
 
 WatcherImpl::~WatcherImpl() {
+
+   ENVOY_LOG(debug, "***Destroying watch!!!");
   close(queue_);
   watches_.clear();
 }
@@ -47,6 +49,7 @@ absl::StatusOr<WatcherImpl::FileWatchPtr> WatcherImpl::addWatch(absl::string_vie
                                                                 uint32_t events,
                                                                 Watcher::OnChangedCb cb,
                                                                 bool path_must_exist) {
+  ENVOY_LOG(debug, "***Adding watch for {}!!!", path);
   bool watching_dir = false;
   std::string pathname(path);
   int watch_fd = open(pathname.c_str(), O_SYMLINK);
@@ -98,6 +101,7 @@ void WatcherImpl::removeWatch(FileWatchPtr& watch) {
 }
 
 absl::Status WatcherImpl::onKqueueEvent() {
+  ENVOY_LOG(debug, "***On watch event!!!");
   struct kevent event = {};
   timespec nullts = {0, 0};
 

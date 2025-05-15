@@ -164,6 +164,7 @@ void TestEnvironment::removePath(const std::string& path) {
 }
 
 void TestEnvironment::renameFile(const std::string& old_name, const std::string& new_name) {
+  std::cerr <<"***Renaming file from " << old_name << " to " << new_name << std::endl;
   Filesystem::fileSystemForTest().renameFile(old_name, new_name);
 }
 

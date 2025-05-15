@@ -281,37 +281,37 @@ TEST(DataSourceProviderTest, FileDataSourceButNoWatch) {
 }
 
 TEST(DataSourceProviderTest, FileDataSourceAndWithWatch) {
-  unlink(TestEnvironment::temporaryPath("envoy_test/watcher_target").c_str());
-  unlink(TestEnvironment::temporaryPath("envoy_test/watcher_link").c_str());
-  unlink(TestEnvironment::temporaryPath("envoy_test/watcher_new_target").c_str());
-  unlink(TestEnvironment::temporaryPath("envoy_test/watcher_new_link").c_str());
+  unlink(TestEnvironment::temporaryPath("envoy_test1/watcher_target").c_str());
+  unlink(TestEnvironment::temporaryPath("envoy_test1/watcher_link").c_str());
+  unlink(TestEnvironment::temporaryPath("envoy_test1/watcher_new_target").c_str());
+  unlink(TestEnvironment::temporaryPath("envoy_test1/watcher_new_link").c_str());
 
   envoy::config::core::v3::DataSource config;
-  TestEnvironment::createPath(TestEnvironment::temporaryPath("envoy_test"));
+  TestEnvironment::createPath(TestEnvironment::temporaryPath("envoy_test1"));
 
   const std::string yaml = fmt::format(R"EOF(
     filename: "{}"
     watched_directory:
       path: "{}"
   )EOF",
-                                       TestEnvironment::temporaryPath("envoy_test/watcher_link"),
-                                       TestEnvironment::temporaryPath("envoy_test"));
+                                       TestEnvironment::temporaryPath("envoy_test1/watcher_link"),
+                                       TestEnvironment::temporaryPath("envoy_test1"));
   TestUtility::loadFromYamlAndValidate(yaml, config);
 
   {
-    std::ofstream file(TestEnvironment::temporaryPath("envoy_test/watcher_target"));
+    std::ofstream file(TestEnvironment::temporaryPath("envoy_test1/watcher_target"));
     file << "Hello, world!";
     file.close();
   }
-  TestEnvironment::createSymlink(TestEnvironment::temporaryPath("envoy_test/watcher_target"),
-                                 TestEnvironment::temporaryPath("envoy_test/watcher_link"));
+  TestEnvironment::createSymlink(TestEnvironment::temporaryPath("envoy_test1/watcher_target"),
+                                 TestEnvironment::temporaryPath("envoy_test1/watcher_link"));
   {
-    std::ofstream file(TestEnvironment::temporaryPath("envoy_test/watcher_new_target"));
+    std::ofstream file(TestEnvironment::temporaryPath("envoy_test1/watcher_new_target"));
     file << "Hello, world! Updated!";
     file.close();
   }
-  TestEnvironment::createSymlink(TestEnvironment::temporaryPath("envoy_test/watcher_new_target"),
-                                 TestEnvironment::temporaryPath("envoy_test/watcher_new_link"));
+  TestEnvironment::createSymlink(TestEnvironment::temporaryPath("envoy_test1/watcher_new_target"),
+                                 TestEnvironment::temporaryPath("envoy_test1/watcher_new_link"));
 
   EXPECT_EQ(envoy::config::core::v3::DataSource::SpecifierCase::kFilename, config.specifier_case());
 
@@ -325,8 +325,8 @@ TEST(DataSourceProviderTest, FileDataSourceAndWithWatch) {
   EXPECT_EQ(provider_or_error.value()->data(), "Hello, world!");
 
   // Update the symlink to point to the new file.
-  TestEnvironment::renameFile(TestEnvironment::temporaryPath("envoy_test/watcher_new_link"),
-                              TestEnvironment::temporaryPath("envoy_test/watcher_link"));
+  TestEnvironment::renameFile(TestEnvironment::temporaryPath("envoy_test1/watcher_new_link"),
+                              TestEnvironment::temporaryPath("envoy_test1/watcher_link"));
   // Handle the events if any.
   dispatcher->run(Event::Dispatcher::RunType::NonBlock);
 
@@ -334,10 +334,10 @@ TEST(DataSourceProviderTest, FileDataSourceAndWithWatch) {
   EXPECT_EQ(provider_or_error.value()->data(), "Hello, world! Updated!");
 
   // Remove the file.
-  unlink(TestEnvironment::temporaryPath("envoy_test/watcher_target").c_str());
-  unlink(TestEnvironment::temporaryPath("envoy_test/watcher_link").c_str());
-  unlink(TestEnvironment::temporaryPath("envoy_test/watcher_new_target").c_str());
-  unlink(TestEnvironment::temporaryPath("envoy_test/watcher_new_link").c_str());
+  unlink(TestEnvironment::temporaryPath("envoy_test1/watcher_target").c_str());
+  unlink(TestEnvironment::temporaryPath("envoy_test1/watcher_link").c_str());
+  unlink(TestEnvironment::temporaryPath("envoy_test1/watcher_new_target").c_str());
+  unlink(TestEnvironment::temporaryPath("envoy_test1/watcher_new_link").c_str());
 }
 
 TEST(DataSourceProviderTest, FileDataSourceAndWithWatchButUpdateError) {

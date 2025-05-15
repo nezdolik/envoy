@@ -30,7 +30,9 @@ WatcherImpl::WatcherImpl(Event::Dispatcher& dispatcher, Filesystem::Instance& fi
       Event::FileTriggerType::Edge, Event::FileReadyType::Read);
 }
 
-WatcherImpl::~WatcherImpl() { close(inotify_fd_); }
+WatcherImpl::~WatcherImpl() {
+  std::cerr << "****destroying watcher for " <<std::endl;
+  close(inotify_fd_); }
 
 absl::Status WatcherImpl::addWatch(absl::string_view path, uint32_t events, OnChangedCb callback) {
   // Because of general inotify pain, we always watch the directory that the file lives in,

@@ -22,6 +22,7 @@ namespace DataSource {
  */
 absl::StatusOr<std::string> readFile(const std::string& path, Api::Api& api, bool allow_empty,
                                      uint64_t max_size) {
+  std::cerr << "****!!!Datasource reading file: " << path << std::endl;
   auto& file_system = api.fileSystem();
 
   if (max_size > 0) {
@@ -115,6 +116,7 @@ absl::StatusOr<DataSourceProviderPtr> DataSourceProvider::create(const ProtoData
                                                                  ThreadLocal::SlotAllocator& tls,
                                                                  Api::Api& api, bool allow_empty,
                                                                  uint64_t max_size) {
+  std::cerr << "****!!!DataSourceProvider create"<< std::endl;
   auto initial_data_or_error = read(source, allow_empty, api, max_size);
   RETURN_IF_NOT_OK_REF(initial_data_or_error.status());
 
@@ -129,6 +131,7 @@ absl::StatusOr<DataSourceProviderPtr> DataSourceProvider::create(const ProtoData
 
   if (!source.has_watched_directory() ||
       source.specifier_case() != envoy::config::core::v3::DataSource::kFilename) {
+        std::cerr << "****!!!Does not have watched directory"<< std::endl;
     return std::unique_ptr<DataSourceProvider>(
         new DataSourceProvider(std::move(initial_data_or_error).value()));
   }
@@ -140,24 +143,30 @@ absl::StatusOr<DataSourceProviderPtr> DataSourceProvider::create(const ProtoData
   });
 
   const auto& filename = source.filename();
+   std::cerr << "****!!!Before creating watch"<< std::endl;
   auto watcher = main_dispatcher.createFilesystemWatcher();
+  std::cerr << "****!!!After createFilesystemWatcher"<< std::endl;
   // DynamicData will ensure that the watcher is destroyed before the slot is destroyed.
   // TODO(wbpcode): use Config::WatchedDirectory instead of directly creating a watcher
   // if the Config::WatchedDirectory is exception-free in the future.
   auto watcher_status = watcher->addWatch(
-      absl::StrCat(source.watched_directory().path(), "/"), Filesystem::Watcher::Events::MovedTo,
-      [slot_ptr = slot.get(), &api, filename, allow_empty, max_size](uint32_t) -> absl::Status {
+      source.watched_directory().path(), Filesystem::Watcher::Events::MovedTo,
+      [slot_ptr = slot.get(), &api, filename, allow_empty, max_size, &source](uint32_t) -> absl::Status {
+        std::cerr << "****!!!Trying to add watch for: " << absl::StrCat(source.watched_directory().path(), "/") << std::endl;
         auto new_data_or_error = readFile(filename, api, allow_empty, max_size);
         if (!new_data_or_error.ok()) {
+          std::cerr << "****!!!Failed to add watch for: " << absl::StrCat(source.watched_directory().path(), "/") << std::endl;
           // Log an error but don't fail the watch to avoid throwing EnvoyException at runtime.
           ENVOY_LOG_TO_LOGGER(Logger::Registry::getLog(Logger::Id::config), error,
                               "Failed to read file: {}", new_data_or_error.status().message());
           return absl::OkStatus();
         }
+        std::cerr << "****!!!Adding watch for: " << absl::StrCat(source.watched_directory().path(), "/") << std::endl;
         slot_ptr->runOnAllThreads(
             [new_data = std::make_shared<std::string>(std::move(new_data_or_error.value()))](
                 OptRef<DynamicData::ThreadLocalData> obj) {
               if (obj.has_value()) {
+                std::cerr << "****!!!REloaded data" << std::endl;
                 obj->data_ = new_data;
               }
             });

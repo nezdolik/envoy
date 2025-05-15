@@ -200,7 +200,8 @@ void MemfileInstanceImpl::renameFile(const std::string& old_name, const std::str
                                       old_name, new_name, ::GetLastError()));
 #else
   const int rc = ::rename(old_name.c_str(), new_name.c_str());
-  RELEASE_ASSERT(rc == 0, "failed to rename file");
+  RELEASE_ASSERT(rc == 0, fmt::format("failed to rename file from  {} to {}",
+                                      old_name, new_name));
 #endif
 }
 
