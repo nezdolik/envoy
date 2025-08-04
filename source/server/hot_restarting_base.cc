@@ -27,6 +27,7 @@ RpcStream::~RpcStream() {
 void RpcStream::initDomainSocketAddress(sockaddr_un* address) {
   memset(address, 0, sizeof(*address));
   address->sun_family = AF_UNIX;
+  ENVOY_LOG(debug, "Initialised domain socket address");
 }
 
 sockaddr_un RpcStream::createDomainSocketAddress(uint64_t id, const std::string& role,
@@ -44,13 +45,14 @@ sockaddr_un RpcStream::createDomainSocketAddress(uint64_t id, const std::string&
       std::unique_ptr<Network::Address::PipeInstance>);
   safeMemcpy(&address, &(addr->getSockAddr()));
   fchmod(domain_socket_, socket_mode);
-
+  ENVOY_LOG(debug, "Created domain socket address");
   return address;
 }
 
 void RpcStream::bindDomainSocket(uint64_t id, const std::string& role,
                                  const std::string& socket_path, mode_t socket_mode) {
   Api::OsSysCalls& os_sys_calls = Api::OsSysCallsSingleton::get();
+  ENVOY_LOG(debug, "Trying to bind to socket address {} in mode {}", socket_path, socket_mode);
   // This actually creates the socket and binds it. We use the socket in datagram mode so we can
   // easily read single messages.
   domain_socket_ = socket(AF_UNIX, SOCK_DGRAM | SOCK_NONBLOCK, 0);
@@ -67,6 +69,7 @@ void RpcStream::bindDomainSocket(uint64_t id, const std::string& role,
     }
     throw EnvoyException(msg);
   }
+  ENVOY_LOG(debug, "Successfully binded to socket address {} in mode {}", socket_path, socket_mode);
 }
 
 bool RpcStream::sendHotRestartMessage(sockaddr_un& address, const HotRestartMessage& proto,
@@ -204,6 +207,7 @@ std::unique_ptr<HotRestartMessage> RpcStream::parseProtoAndResetState() {
 }
 
 std::unique_ptr<HotRestartMessage> RpcStream::receiveHotRestartMessage(Blocking block) {
+  ENVOY_LOG(debug, "Received hot restart message");
   // By default the domain socket is non blocking. If we need to block, make it blocking first.
   if (block == Blocking::Yes) {
     RELEASE_ASSERT(fcntl(domain_socket_, F_SETFL, 0) != -1,

@@ -39,6 +39,7 @@ SharedMemory* attachSharedMemory(uint32_t base_id, uint32_t restart_epoch) {
 
   const Api::SysCallIntResult result =
       hot_restart_os_sys_calls.shmOpen(shmem_name.c_str(), flags, S_IRUSR | S_IWUSR);
+  ENVOY_LOG_MISC(debug, "Called hot_restart_os_sys_calls.shmOpen with flags {}", flags);
   if (result.return_value_ == -1) {
     PANIC(fmt::format("cannot open shared memory region {} check user permissions. Error: {}",
                       shmem_name, errorDetails(result.errno_)));
@@ -111,12 +112,14 @@ HotRestartImpl::HotRestartImpl(uint32_t base_id, uint32_t restart_epoch,
 }
 
 void HotRestartImpl::drainParentListeners() {
+  ENVOY_LOG_MISC(debug, "drainParentListeners called, setting flags to SHMEM_FLAGS_INITIALIZING");
   as_child_.drainParentListeners();
   // At this point we are initialized and a new Envoy can startup if needed.
   shmem_->flags_ &= ~SHMEM_FLAGS_INITIALIZING;
 }
 
 int HotRestartImpl::duplicateParentListenSocket(const std::string& address, uint32_t worker_index) {
+  ENVOY_LOG_MISC(debug, "called duplicateParentListenSocket");
   return as_child_.duplicateParentListenSocket(address, worker_index);
 }
 
@@ -127,6 +130,7 @@ void HotRestartImpl::registerUdpForwardingListener(
 }
 
 OptRef<Network::ParentDrainedCallbackRegistrar> HotRestartImpl::parentDrainedCallbackRegistrar() {
+  ENVOY_LOG_MISC(debug, "called parentDrainedCallbackRegistrar");
   return as_child_;
 }
 
@@ -139,7 +143,10 @@ absl::optional<HotRestart::AdminShutdownResponse> HotRestartImpl::sendParentAdmi
   return as_child_.sendParentAdminShutdownRequest();
 }
 
-void HotRestartImpl::sendParentTerminateRequest() { as_child_.sendParentTerminateRequest(); }
+void HotRestartImpl::sendParentTerminateRequest() {
+  ENVOY_LOG_MISC(debug, "called sendParentTerminateRequest");
+  as_child_.sendParentTerminateRequest();
+}
 
 HotRestart::ServerStatsFromParent
 HotRestartImpl::mergeParentStatsIfAny(Stats::StoreRoot& stats_store) {
