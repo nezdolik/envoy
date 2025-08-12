@@ -27,6 +27,8 @@ HotRestartingParent::HotRestartingParent(int base_id, int restart_epoch,
 }
 
 void HotRestartingParent::sendHotRestartMessage(envoy::HotRestartMessage&& msg) {
+  ENVOY_LOG(warn, "HotRestartingParent::sendHotRestartMessage");
+
   ASSERT(dispatcher_.has_value());
   dispatcher_->post([this, msg = std::move(msg)]() {
     udp_forwarding_rpc_stream_.sendHotRestartMessage(child_address_udp_forwarding_, std::move(msg));

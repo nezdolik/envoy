@@ -111,12 +111,15 @@ HotRestartImpl::HotRestartImpl(uint32_t base_id, uint32_t restart_epoch,
 }
 
 void HotRestartImpl::drainParentListeners() {
+  ENVOY_LOG(error, "HotRestartImpl::drainParentListeners");
   as_child_.drainParentListeners();
   // At this point we are initialized and a new Envoy can startup if needed.
   shmem_->flags_ &= ~SHMEM_FLAGS_INITIALIZING;
 }
 
 int HotRestartImpl::duplicateParentListenSocket(const std::string& address, uint32_t worker_index) {
+    ENVOY_LOG(error, "HotRestartImpl::duplicateParentListenSocke");
+
   return as_child_.duplicateParentListenSocket(address, worker_index);
 }
 
@@ -155,6 +158,8 @@ HotRestartImpl::mergeParentStatsIfAny(Stats::StoreRoot& stats_store) {
 }
 
 void HotRestartImpl::shutdown() {
+      ENVOY_LOG(error, "HotRestartImpl::shutdown");
+
   as_parent_.shutdown();
   as_child_.shutdown();
 }
