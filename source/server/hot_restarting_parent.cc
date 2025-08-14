@@ -27,6 +27,8 @@ HotRestartingParent::HotRestartingParent(int base_id, int restart_epoch,
 }
 
 void HotRestartingParent::sendHotRestartMessage(envoy::HotRestartMessage&& msg) {
+  ENVOY_LOG(warn, "HotRestartingParent::sendHotRestartMessage");
+
   ASSERT(dispatcher_.has_value());
   dispatcher_->post([this, msg = std::move(msg)]() {
     udp_forwarding_rpc_stream_.sendHotRestartMessage(child_address_udp_forwarding_, std::move(msg));
@@ -66,6 +68,7 @@ void HotRestartingParent::onSocketEvent() {
   while ((wrapped_request = main_rpc_stream_.receiveHotRestartMessage(RpcStream::Blocking::No))) {
     if (wrapped_request->requestreply_case() == HotRestartMessage::kReply) {
       ENVOY_LOG(error, "child sent us a HotRestartMessage reply (we want requests); ignoring.");
+      ENVOY_LOG(error, "child sent us a HotRestartMessage reply (we want requests); ignoring.");
       HotRestartMessage wrapped_reply;
       wrapped_reply.set_didnt_recognize_your_last_message(true);
       main_rpc_stream_.sendHotRestartMessage(child_address_, wrapped_reply);
@@ -91,6 +94,7 @@ void HotRestartingParent::onSocketEvent() {
     }
 
     case HotRestartMessage::Request::kDrainListeners: {
+      ENVOY_LOG(error, "HotRestartMessage::Request::kDrainListeners");
       internal_->drainListeners();
       break;
     }
@@ -131,7 +135,7 @@ HotRestartMessage HotRestartingParent::Internal::shutdownAdmin() {
   wrapped_reply.mutable_reply()->mutable_shutdown_admin()->set_original_start_time_unix_seconds(
       server_->startTimeFirstEpoch());
   wrapped_reply.mutable_reply()->mutable_shutdown_admin()->set_enable_reuse_port_default(
-      server_->enableReusePortDefault());
+      true);
   return wrapped_reply;
 }
 
