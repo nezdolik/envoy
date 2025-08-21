@@ -75,7 +75,7 @@ SharedMemory* attachSharedMemory(uint32_t base_id, uint32_t restart_epoch) {
   // in a finer way. This will cause the startup to fail with an error code early, without
   // affecting any currently running processes. The process runner should try again later with some
   // back off and with the same hot restart epoch number.
-  uint64_t old_flags = shmem->flags_.fetch_or(SHMEM_FLAGS_INITIALIZING);
+  //uint64_t old_flags = shmem->flags_.fetch_or(SHMEM_FLAGS_INITIALIZING);
   // if (old_flags & SHMEM_FLAGS_INITIALIZING) {
   //   throw EnvoyException("previous envoy process is still initializing");
   // }
